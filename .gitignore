@@ -1,0 +1,41 @@
+node_modules
+.next
+out
+dist
+build
+coverage
+.turbo
+.swc
+
+# OS / редакторы
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+.idea
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# env / секреты
+.env
+.env.*
+!.env.example
+
+# lock-файлы (оставим только один менеджер)
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# локальные данные и загруженные файлы
+data/uploads
+data/reports
+
+# Python helper (если будут артефакты)
+__pycache__/
+*.py[cod]
+*.pyo
+
+
