@@ -45,7 +45,7 @@ LDAP_BIND_DN=uid=smdoadmin,ou=staff,dc=bsuir,dc=by
 LDAP_BIND_PASSWORD=ваш_пароль_здесь
 
 # Базы поиска пользователей
-LDAP_USER_SEARCH_BASES=ou=staff,dc=bsuir,dc=by,ou=stud,dc=bsuir,dc=by
+LDAP_USER_SEARCH_BASES=ou=staff,dc=bsuir,dc=by;ou=stud,dc=bsuir,dc=by
 ```
 
 ## 🔐 Обязательно измените перед production

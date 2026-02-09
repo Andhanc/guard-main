@@ -34,7 +34,7 @@ LDAP_URL=ldaps://ldap.bsuir.by
 LDAP_BASE_DN=dc=bsuir,dc=by
 LDAP_BIND_DN=uid=smdoadmin,ou=staff,dc=bsuir,dc=by
 LDAP_BIND_PASSWORD=your_password
-LDAP_USER_SEARCH_BASES=ou=staff,dc=bsuir,dc=by,ou=stud,dc=bsuir,dc=by
+LDAP_USER_SEARCH_BASES=ou=staff,dc=bsuir,dc=by;ou=stud,dc=bsuir,dc=by
 LDAP_USER_SEARCH_FILTER=(uid={username})
 LDAP_USERNAME_ATTRIBUTE=uid
 LDAP_EMAIL_ATTRIBUTE=mail

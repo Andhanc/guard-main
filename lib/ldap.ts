@@ -52,11 +52,13 @@ export function getLDAPConfig(): LDAPConfig | null {
     return null
   }
 
-  // Поддержка нескольких баз поиска (через запятую или перенос строки)
+  // Поддержка нескольких баз поиска (через точку с запятой, вертикальную черту или перенос строки)
+  // НЕ используем запятую, так как она может быть внутри DN (например, dc=bsuir,dc=by)
   let userSearchBases: string[] = []
   if (process.env.LDAP_USER_SEARCH_BASES) {
-    // Поддержка формата через запятую или перенос строки
-    userSearchBases = process.env.LDAP_USER_SEARCH_BASES.split(/[,\n]/)
+    // Поддержка формата через точку с запятой, вертикальную черту или перенос строки
+    // Разделяем по ; | или \n, но не по запятой
+    userSearchBases = process.env.LDAP_USER_SEARCH_BASES.split(/[;\n|]/)
       .map((base) => base.trim())
       .filter((base) => base.length > 0)
   } else if (process.env.LDAP_USER_SEARCH_BASE) {

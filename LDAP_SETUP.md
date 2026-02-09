@@ -32,7 +32,7 @@ LDAP_BIND_PASSWORD=password
 
 # Базовые DN для поиска пользователей (можно указать несколько через запятую)
 # Если указано несколько баз, поиск будет выполняться во всех по очереди
-LDAP_USER_SEARCH_BASES=ou=staff,dc=bsuir,dc=by,ou=stud,dc=bsuir,dc=by
+LDAP_USER_SEARCH_BASES=ou=staff,dc=bsuir,dc=by;ou=stud,dc=bsuir,dc=by
 # Или одна база (для обратной совместимости):
 # LDAP_USER_SEARCH_BASE=ou=users,dc=example,dc=com
 
@@ -66,7 +66,7 @@ LDAP_BIND_DN=uid=smdoadmin,ou=staff,dc=bsuir,dc=by
 LDAP_BIND_PASSWORD=eW308687!
 
 # Несколько баз поиска через запятую (staff и stud)
-LDAP_USER_SEARCH_BASES=ou=staff,dc=bsuir,dc=by,ou=stud,dc=bsuir,dc=by
+LDAP_USER_SEARCH_BASES=ou=staff,dc=bsuir,dc=by;ou=stud,dc=bsuir,dc=by
 
 LDAP_USER_SEARCH_FILTER=(uid={username})
 LDAP_USERNAME_ATTRIBUTE=uid
