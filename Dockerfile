@@ -2,9 +2,17 @@ FROM node:20-bookworm-slim AS deps
 
 WORKDIR /app
 
+# Установка системных зависимостей для native модулей (ldapts может требовать)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Установка зависимостей (включая dev-зависимости, нужные для сборки)
+# Используем npm install с --legacy-peer-deps, чтобы избежать ошибок npm ci внутри контейнера
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 
 FROM node:20-bookworm-slim AS builder
@@ -31,8 +39,9 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Создаем директорию для данных (файлы и база документов)
-RUN mkdir -p /app/data/uploads
+# Создаем директорию для данных (файлы, база документов, логи)
+RUN mkdir -p /app/data/uploads /app/data/reports /app/data/logs && \
+    chmod -R 755 /app/data
 
 # Копируем только то, что нужно для запуска
 COPY package.json package-lock.json* ./
