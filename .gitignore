@@ -23,6 +23,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+!.env.local
 
 # lock-файлы (оставим только один менеджер)
 pnpm-lock.yaml

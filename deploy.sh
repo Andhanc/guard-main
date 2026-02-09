@@ -21,16 +21,26 @@ fi
 # Проверка наличия .env.local
 if [ ! -f .env.local ]; then
     echo "⚠️  Файл .env.local не найден."
-    if [ -f env.bsuir.local.example ]; then
+    if [ -f .env.local.example ]; then
         echo "📋 Создаю .env.local из примера..."
+        cp .env.local.example .env.local
+        echo "✅ Файл .env.local создан из .env.local.example"
+    elif [ -f env.bsuir.local.example ]; then
+        echo "📋 Создаю .env.local из примера env.bsuir.local.example..."
         cp env.bsuir.local.example .env.local
-        echo "✅ Файл .env.local создан. Пожалуйста, отредактируйте его и укажите правильные значения LDAP."
-        echo "   Затем запустите скрипт снова."
-        exit 0
+        echo "✅ Файл .env.local создан из env.bsuir.local.example"
     else
-        echo "❌ Файл env.bsuir.local.example не найден."
+        echo "❌ Файлы .env.local.example или env.bsuir.local.example не найдены."
         exit 1
     fi
+    echo ""
+    echo "⚠️  ВАЖНО: Отредактируйте .env.local и укажите правильные значения:"
+    echo "   - LDAP_BIND_PASSWORD (пароль для LDAP)"
+    echo "   - REPORT_ACCESS_SECRET (секретный ключ для отчетов, минимум 16 символов)"
+    echo "   - NEXT_PUBLIC_APP_URL (публичный URL приложения, опционально)"
+    echo ""
+    echo "   Затем запустите скрипт снова: ./deploy.sh"
+    exit 0
 fi
 
 # Создание директории для данных, если не существует
