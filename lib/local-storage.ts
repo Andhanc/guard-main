@@ -311,6 +311,17 @@ export function updateDocumentOriginality(documentId: number, originalityPercent
   return true
 }
 
+export function updateDocumentStatus(documentId: number, status: DocumentStatus): boolean {
+  const doc = getDocumentByIdFromDb(documentId)
+  if (!doc) return false
+  const db = readCategoryDatabase(doc.category)
+  const d = db.documents.find((x) => x.id === documentId)
+  if (!d) return false
+  d.status = status
+  writeCategoryDatabase(doc.category, db)
+  return true
+}
+
 // ——— Отчёты (PDF) ———
 
 function ensureReportsDir() {

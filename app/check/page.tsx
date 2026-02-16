@@ -14,6 +14,7 @@ import {
   History,
   Trash2,
   User,
+  Save,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -61,6 +62,7 @@ export default function CheckPage() {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<CheckHistoryItem[]>([])
+  const [isSavingAsFinal, setIsSavingAsFinal] = useState(false)
 
   const [showMetadataDialog, setShowMetadataDialog] = useState(false)
   const [metadata, setMetadata] = useState({
@@ -68,7 +70,7 @@ export default function CheckPage() {
     author: "",
     checker: "",
     category: "coursework",
-    status: "final" as "draft" | "final",
+    status: "draft" as "draft" | "final",
   })
 
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -109,8 +111,8 @@ export default function CheckPage() {
       author: "",
       checker: "",
       category: "coursework",
-      // Для студента каждая проверка после заполнения формы считается финальной.
-      status: "final",
+      // По умолчанию версия документа всегда черновая
+      status: "draft",
     })
     setShowMetadataDialog(true)
   }
@@ -204,7 +206,8 @@ export default function CheckPage() {
               uploadDate: new Date().toISOString(),
               status: "final" as const,
               documentId,
-              baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+              // baseUrl определяется на сервере, не передаем с клиента
+              baseUrl: undefined,
               userId: currentUser?.username,
               userRole: currentUser?.role,
             }
@@ -245,7 +248,7 @@ export default function CheckPage() {
       author: "",
       checker: "",
       category: "coursework",
-      status: "final",
+      status: "draft",
     })
   }
 
@@ -435,9 +438,127 @@ export default function CheckPage() {
                     </Card>
 
                     {/* Action buttons */}
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="flex justify-center gap-4">
-                        {result.documentId && result.status === "final" ? (
+                    <div className="flex flex-col items-center justify-center gap-4 w-full">
+                      {!result.documentId ? (
+                        <div className="flex flex-col items-center gap-2 w-full">
+                          <Button
+                            variant="default"
+                            disabled
+                            className="gap-2 opacity-50 w-full max-w-md"
+                          >
+                            <FileText className="h-4 w-4" />
+                            Скачать итоговый отчёт с QR-кодами
+                          </Button>
+                          <p className="text-sm text-muted-foreground text-center">
+                            Документ еще не сохранен. Пожалуйста, подождите...
+                          </p>
+                        </div>
+                      ) : result.status === "draft" ? (
+                        <div className="flex flex-col items-center gap-4 w-full max-w-md">
+                          <p className="text-sm text-muted-foreground text-center">
+                            Итоговый отчёт с QR-кодами доступен только для финальной версии.
+                          </p>
+                          <div className="flex flex-row gap-3 w-full justify-center">
+                            <Button
+                              variant="default"
+                              onClick={async () => {
+                                if (!result.documentId) {
+                                  alert("Документ еще не сохранен")
+                                  return
+                                }
+
+                                setIsSavingAsFinal(true)
+                                try {
+                                  const res = await fetch(`/api/documents/${result.documentId}/status`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ status: "final" }),
+                                  })
+
+                                  const data = await res.json()
+
+                                  if (data.success) {
+                                    // Обновляем локальное состояние результата
+                                    setResult({ ...result, status: "final" })
+                                    
+                                    // Обновляем историю
+                                    setHistory(getCheckHistory())
+
+                                    // Автоматически генерируем финальный отчет с QR-кодами
+                                    try {
+                                      const currentUser = getSession()
+                                      const reportData = {
+                                        filename: parsedFile?.filename || "document",
+                                        title: metadata.title,
+                                        author: metadata.author,
+                                        checker: metadata.checker || undefined,
+                                        category: metadata.category,
+                                        uniquenessPercent: result.uniquenessPercent,
+                                        totalDocumentsChecked: result.totalDocumentsChecked,
+                                        similarDocuments: result.similarDocuments,
+                                        processingTimeMs: result.processingTimeMs,
+                                        uploadDate: new Date().toISOString(),
+                                        status: "final" as const,
+                                        documentId: result.documentId,
+                                        // baseUrl определяется на сервере, не передаем с клиента
+              baseUrl: undefined,
+                                        userId: currentUser?.username,
+                                        userRole: currentUser?.role,
+                                      }
+
+                                      const reportRes = await fetch("/api/report", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify(reportData),
+                                      })
+
+                                      if (reportRes.ok) {
+                                        console.log("Финальный отчет с QR-кодами успешно сгенерирован")
+                                      }
+                                    } catch (reportErr) {
+                                      console.error("Ошибка при генерации финального отчета:", reportErr)
+                                    }
+                                  } else {
+                                    alert(data.error || "Не удалось сохранить как финальную версию")
+                                  }
+                                } catch (err) {
+                                  console.error("Error saving as final:", err)
+                                  alert("Ошибка при сохранении как финальная версия")
+                                } finally {
+                                  setIsSavingAsFinal(false)
+                                }
+                              }}
+                              disabled={isSavingAsFinal || !result.documentId}
+                              className="gap-2 flex-1"
+                            >
+                              {isSavingAsFinal ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Сохранение...
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="h-4 w-4" />
+                                  Сохранить как финальная версия
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="default"
+                              disabled
+                              className="gap-2 opacity-50 flex-1"
+                            >
+                              <FileText className="h-4 w-4" />
+                              Скачать итоговый отчёт с QR-кодами
+                            </Button>
+                            <Button variant="outline" onClick={resetCheck} className="gap-2 bg-transparent flex-1">
+                              <FileText className="h-4 w-4" />
+                              Проверить другой документ
+                            </Button>
+                          </div>
+                        </div>
+                      ) : result.status === "final" ? (
+                        <div className="flex flex-row gap-3 w-full max-w-md justify-center">
                           <Button
                             variant="default"
                             onClick={async (e) => {
@@ -460,9 +581,10 @@ export default function CheckPage() {
                                   similarDocuments: result.similarDocuments,
                                   processingTimeMs: result.processingTimeMs,
                                   uploadDate: new Date().toISOString(),
-                                  status: result.status === "final" ? "final" : "draft",
+                                  status: "final" as const,
                                   documentId: result.documentId,
-                                  baseUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+                                  // baseUrl определяется на сервере, не передаем с клиента
+              baseUrl: undefined,
                                   userId: currentUser?.username,
                                   userRole: currentUser?.role,
                                 }
@@ -498,36 +620,17 @@ export default function CheckPage() {
                                 alert(`Ошибка при генерации отчета: ${err instanceof Error ? err.message : "Неизвестная ошибка"}`)
                               }
                             }}
-                            className="gap-2"
+                            className="gap-2 flex-1"
                           >
                             <FileText className="h-4 w-4" />
                             Скачать итоговый отчёт с QR-кодами
                           </Button>
-                        ) : !result.documentId ? (
-                          <div className="flex flex-col items-center gap-2">
-                            <Button
-                              variant="default"
-                              disabled
-                              className="gap-2 opacity-50"
-                            >
-                              <FileText className="h-4 w-4" />
-                              Скачать итоговый отчёт с QR-кодами
-                            </Button>
-                            <p className="text-sm text-muted-foreground text-center">
-                              Документ еще не сохранен. Пожалуйста, подождите...
-                            </p>
-                          </div>
-                        ) : result.status === "draft" ? (
-                          <p className="text-sm text-muted-foreground">
-                            Итоговый отчёт с QR-кодами доступен только для финальной версии.
-                          </p>
-                        ) : null}
-
-                        <Button variant="outline" onClick={resetCheck} className="gap-2 bg-transparent">
-                          <FileText className="h-4 w-4" />
-                          Проверить другой документ
-                        </Button>
-                      </div>
+                          <Button variant="outline" onClick={resetCheck} className="gap-2 bg-transparent flex-1">
+                            <FileText className="h-4 w-4" />
+                            Проверить другой документ
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
 
                     {/* Similar Documents */}
@@ -676,21 +779,10 @@ export default function CheckPage() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="status" className="text-sm font-medium">
-                Версия документа *
-              </label>
-              <Select
-                value={metadata.status}
-                onValueChange={(value: "draft" | "final") => setMetadata({ ...metadata, status: value })}
-              >
-                <SelectTrigger id="status" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="final">Финальная (хранится всегда)</SelectItem>
-                  <SelectItem value="draft">Черновая (удаляется через 24 ч)</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="rounded-md bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+                <p className="font-medium mb-1">Версия документа</p>
+                <p>Черновая версия (удаляется через 24 ч)</p>
+              </div>
             </div>
 
           </div>

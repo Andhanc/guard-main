@@ -155,28 +155,6 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg space-y-2 border border-blue-200 dark:border-blue-900">
-            <p className="text-xs font-medium text-blue-900 dark:text-blue-300">Тестовые учетные записи:</p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div>
-                <p className="font-mono text-blue-600 dark:text-blue-400">student / student</p>
-                <p className="text-muted-foreground">Студент</p>
-              </div>
-              <div>
-                <p className="font-mono text-blue-600 dark:text-blue-400">teacher / teacher</p>
-                <p className="text-muted-foreground">Преподаватель</p>
-              </div>
-              <div>
-                <p className="font-mono text-blue-600 dark:text-blue-400">admin / admin</p>
-                <p className="text-muted-foreground">Администратор</p>
-              </div>
-              <div>
-                <p className="font-mono text-blue-600 dark:text-blue-400">superadmin / superadmin</p>
-                <p className="text-muted-foreground">Главный админ</p>
-              </div>
-            </div>
-          </div>
-
           <div className="mt-6 pt-6 border-t text-center space-y-2">
             <p className="text-xs text-muted-foreground">
               <a

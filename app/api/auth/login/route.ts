@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
         
         if (ldapResult.success && ldapResult.user) {
           // LDAP аутентификация успешна
-          const ldapUser = mapLDAPUserToUser(ldapResult.user, "student") // По умолчанию роль "student"
+          // Роль определяется автоматически на основе логина (только цифры = студент, есть буквы = преподаватель)
+          const ldapUser = mapLDAPUserToUser(ldapResult.user)
           
           // Проверяем, есть ли пользователь в локальной базе (для получения роли)
           const storedUser = getUserByUsername(normalizedUsername)

@@ -428,11 +428,25 @@ export async function getUserInfoLDAP(username: string): Promise<LDAPUser | null
 
 // Преобразование LDAP пользователя в User с определением роли
 export function mapLDAPUserToUser(ldapUser: LDAPUser, defaultRole: UserRole = "student"): User {
-  // Можно добавить логику определения роли на основе групп LDAP или других атрибутов
-  // Пока используем роль по умолчанию
+  // Определение роли на основе логина:
+  // - Если логин содержит только цифры - это студент
+  // - Если логин содержит буквы - это преподаватель
+  let role: UserRole = defaultRole
+  
+  if (ldapUser.username) {
+    // Проверяем, содержит ли логин только цифры
+    const isOnlyDigits = /^\d+$/.test(ldapUser.username)
+    if (isOnlyDigits) {
+      role = "student"
+    } else {
+      // Если есть буквы - это преподаватель
+      role = "teacher"
+    }
+  }
+  
   return {
     username: ldapUser.username,
-    role: defaultRole,
+    role: role,
     email: ldapUser.email,
     fullName: ldapUser.fullName,
     institution: "БГУИР",

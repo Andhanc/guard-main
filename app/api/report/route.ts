@@ -4,9 +4,24 @@ import { saveReportPdf } from "@/lib/local-storage"
 import { logInfo } from "@/lib/logger"
 
 function getBaseUrl(request: NextRequest): string {
+  // Приоритет 1: переменная окружения (для production)
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL
+  }
+
+  // Приоритет 2: заголовки запроса (для работы через прокси/nginx)
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
   const proto = request.headers.get("x-forwarded-proto") ?? "http"
-  if (host) return `${proto === "https" ? "https" : "http"}://${host}`
+  
+  if (host) {
+    // Проверяем, что это не localhost (для production)
+    const hostLower = host.toLowerCase()
+    if (!hostLower.includes("localhost") && !hostLower.includes("127.0.0.1")) {
+      return `${proto === "https" ? "https" : "http"}://${host}`
+    }
+  }
+
+  // Fallback: используем переменную окружения или localhost для разработки
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
 }
 
@@ -20,7 +35,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Недостаточно данных для генерации отчета" }, { status: 400 })
     }
 
-    const baseUrl = result.baseUrl ?? getBaseUrl(request)
+    // Всегда используем серверную функцию getBaseUrl, игнорируя baseUrl с клиента
+    // чтобы избежать проблем с localhost на сервере
+    const baseUrl = getBaseUrl(request)
     const payload = {
       ...result,
       checker: result.checker ?? undefined,
