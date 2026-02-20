@@ -33,6 +33,13 @@ package-lock.json
 # локальные данные и загруженные файлы
 data/uploads
 data/reports
+data/logs
+# JSON файлы с данными (не должны быть в git)
+data/*.json
+data/**/documents.json
+data/_index.json
+data/users.json
+data/document-types.json
 
 # Python helper (если будут артефакты)
 __pycache__/
