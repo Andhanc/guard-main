@@ -49,7 +49,15 @@ mkdir -p data/uploads data/reports data/logs
 
 # Остановка существующих контейнеров
 echo "🛑 Остановка существующих контейнеров..."
-docker-compose down || true
+docker-compose down --remove-orphans || true
+
+# Удаление старых контейнеров принудительно (если есть)
+echo "🧹 Очистка старых контейнеров..."
+docker rm -f plagiarismguard-app plagiarismguard-nginx 2>/dev/null || true
+
+# Очистка неиспользуемых ресурсов
+echo "🧹 Очистка неиспользуемых ресурсов Docker..."
+docker system prune -f
 
 # Сборка образов
 echo "🔨 Сборка Docker образов..."

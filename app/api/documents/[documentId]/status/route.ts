@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getDocumentByIdFromDb, updateDocumentStatus } from "@/lib/local-storage"
-import { getSession } from "@/lib/auth"
 import { logInfo, logError } from "@/lib/logger"
 import type { DocumentStatus } from "@/lib/local-storage"
 
@@ -22,7 +21,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { status } = body
+    const { status, userId } = body
 
     if (!status || (status !== "draft" && status !== "final")) {
       return NextResponse.json(
@@ -31,19 +30,17 @@ export async function PATCH(
       )
     }
 
+    if (!userId || typeof userId !== "string") {
+      return NextResponse.json({ success: false, error: "Необходима авторизация" }, { status: 401 })
+    }
+
     const doc = getDocumentByIdFromDb(id)
     if (!doc) {
       return NextResponse.json({ success: false, error: "Документ не найден" }, { status: 404 })
     }
 
-    // Проверяем авторизацию
-    const user = getSession()
-    if (!user) {
-      return NextResponse.json({ success: false, error: "Необходима авторизация" }, { status: 401 })
-    }
-
-    // Проверяем, что пользователь является владельцем документа
-    if (doc.userId !== user.username) {
+    // Проверяем, что пользователь является владельцем документа (если указан userId у документа)
+    if (doc.userId && doc.userId !== userId) {
       return NextResponse.json(
         { success: false, error: "Нельзя изменить статус чужого документа" },
         { status: 403 },
@@ -55,8 +52,8 @@ export async function PATCH(
     if (updated) {
       logInfo(
         `Статус документа изменен на ${status}`,
-        user.username,
-        user.role,
+        userId,
+        undefined,
         "document_update",
         { documentId: id, status },
       )

@@ -467,12 +467,18 @@ export default function CheckPage() {
                                   return
                                 }
 
+                                const currentUser = getSession()
+                                if (!currentUser) {
+                                  alert("Необходима авторизация")
+                                  return
+                                }
+
                                 setIsSavingAsFinal(true)
                                 try {
                                   const res = await fetch(`/api/documents/${result.documentId}/status`, {
                                     method: "PATCH",
                                     headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ status: "final" }),
+                                    body: JSON.stringify({ status: "final", userId: currentUser.username }),
                                   })
 
                                   const data = await res.json()
@@ -486,7 +492,6 @@ export default function CheckPage() {
 
                                     // Автоматически генерируем финальный отчет с QR-кодами
                                     try {
-                                      const currentUser = getSession()
                                       const reportData = {
                                         filename: parsedFile?.filename || "document",
                                         title: metadata.title,
@@ -501,9 +506,9 @@ export default function CheckPage() {
                                         status: "final" as const,
                                         documentId: result.documentId,
                                         // baseUrl определяется на сервере, не передаем с клиента
-              baseUrl: undefined,
-                                        userId: currentUser?.username,
-                                        userRole: currentUser?.role,
+                                        baseUrl: undefined,
+                                        userId: currentUser.username,
+                                        userRole: currentUser.role,
                                       }
 
                                       const reportRes = await fetch("/api/report", {
@@ -626,10 +631,10 @@ export default function CheckPage() {
                             Скачать итоговый отчёт с QR-кодами
                           </Button>
                           <Button variant="outline" onClick={resetCheck} className="gap-2 bg-transparent flex-1">
-                            <FileText className="h-4 w-4" />
-                            Проверить другой документ
-                          </Button>
-                        </div>
+                          <FileText className="h-4 w-4" />
+                          Проверить другой документ
+                        </Button>
+                      </div>
                       ) : null}
                     </div>
 
