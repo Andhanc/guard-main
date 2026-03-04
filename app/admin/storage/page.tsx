@@ -39,6 +39,14 @@ import {
 import { getSession } from "@/lib/auth"
 import { FileUpload } from "@/components/file-upload"
 import type { ParsedFile } from "@/lib/file-parser"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination"
 
 interface DocumentData {
   id: number
@@ -79,10 +87,16 @@ export default function StorageManagementPage() {
     category: "coursework",
   })
   const [documentTypes, setDocumentTypes] = useState<Array<{ id: string; label: string }>>([])
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     fetchDocuments()
   }, [])
+
+  // Сбрасываем страницу при изменении фильтров/поиска или списка документов
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, searchAuthor, searchDate, statusFilter, documents])
 
   useEffect(() => {
     fetch("/api/document-types")
@@ -233,6 +247,11 @@ export default function StorageManagementPage() {
       return sortOrder === "asc" ? cmp : -cmp
     })
 
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(filteredDocuments.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedDocuments = filteredDocuments.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   const toggleSort = (key: SortKey) => {
     if (sortBy === key) {
       setSortOrder((o) => (o === "asc" ? "desc" : "asc"))
@@ -357,69 +376,112 @@ export default function StorageManagementPage() {
                 Нет документов в хранилище. Используйте кнопку «Загрузить документ», чтобы добавить первый файл.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <SortHeader columnKey="id">ID</SortHeader>
-                    <SortHeader columnKey="title">Название</SortHeader>
-                    <SortHeader columnKey="author">Автор</SortHeader>
-                    <SortHeader columnKey="userId">Логин</SortHeader>
-                    <SortHeader columnKey="category">Тип работы</SortHeader>
-                    <SortHeader columnKey="uploadDate">Дата загрузки</SortHeader>
-                    <SortHeader columnKey="originalityPercent">Оригинальность %</SortHeader>
-                    <SortHeader columnKey="status">Статус</SortHeader>
-                    <TableHead>Действия</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDocuments.map((doc) => (
-                    <TableRow key={doc.id}>
-                      <TableCell className="font-mono text-sm">#{doc.id}</TableCell>
-                      <TableCell className="font-medium">{doc.title}</TableCell>
-                      <TableCell>{doc.author || "-"}</TableCell>
-                      <TableCell>{doc.userId || "-"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{categoryLabels[doc.category] || doc.category}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {doc.uploadDate
-                          ? new Date(doc.uploadDate).toLocaleString("ru-RU", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {doc.originalityPercent !== undefined && doc.originalityPercent !== null ? (
-                          <span className="font-medium tabular-nums">
-                            {doc.originalityPercent.toFixed(1)}%
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={doc.status === "final" ? "default" : "secondary"}>
-                          {doc.status === "final" ? "Финальная" : "Черновик"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteDocument(doc.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <SortHeader columnKey="id">ID</SortHeader>
+                      <SortHeader columnKey="title">Название</SortHeader>
+                      <SortHeader columnKey="author">Автор</SortHeader>
+                      <SortHeader columnKey="userId">Логин</SortHeader>
+                      <SortHeader columnKey="category">Тип работы</SortHeader>
+                      <SortHeader columnKey="uploadDate">Дата загрузки</SortHeader>
+                      <SortHeader columnKey="originalityPercent">Оригинальность %</SortHeader>
+                      <SortHeader columnKey="status">Статус</SortHeader>
+                      <TableHead>Действия</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedDocuments.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-mono text-sm">#{doc.id}</TableCell>
+                        <TableCell className="font-medium">{doc.title}</TableCell>
+                        <TableCell>{doc.author || "-"}</TableCell>
+                        <TableCell>{doc.userId || "-"}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{categoryLabels[doc.category] || doc.category}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {doc.uploadDate
+                            ? new Date(doc.uploadDate).toLocaleString("ru-RU", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {doc.originalityPercent !== undefined && doc.originalityPercent !== null ? (
+                            <span className="font-medium tabular-nums">
+                              {doc.originalityPercent.toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={doc.status === "final" ? "default" : "secondary"}>
+                            {doc.status === "final" ? "Финальная" : "Черновик"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteDocument(doc.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {filteredDocuments.length > pageSize && (
+                  <div className="mt-4">
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setPage((p) => Math.max(1, p - 1))
+                            }}
+                          />
+                        </PaginationItem>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                          <PaginationItem key={p}>
+                            <PaginationLink
+                              href="#"
+                              isActive={p === currentPage}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                setPage(p)
+                              }}
+                            >
+                              {p}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setPage((p) => Math.min(totalPages, p + 1))
+                            }}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

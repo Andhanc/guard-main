@@ -43,6 +43,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { getSession } from "@/lib/auth"
 import * as XLSX from "xlsx"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination"
 
 interface UserData {
   username: string
@@ -65,6 +73,7 @@ export default function UsersManagementPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null)
+  const [page, setPage] = useState(1)
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -78,6 +87,11 @@ export default function UsersManagementPage() {
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  // Сбрасываем страницу при изменении фильтров/поиска или списка пользователей
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, roleFilter, users])
 
   const fetchUsers = async () => {
     try {
@@ -270,6 +284,11 @@ export default function UsersManagementPage() {
     return matchesSearch && matchesRole
   })
 
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
@@ -440,72 +459,115 @@ export default function UsersManagementPage() {
             {loading ? (
               <div className="text-center py-8 text-muted-foreground">Загрузка...</div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Логин</TableHead>
-                    <TableHead>ФИО</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Тип</TableHead>
-                    <TableHead>Учреждение</TableHead>
-                    <TableHead>Документов</TableHead>
-                    <TableHead>Действия</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.username}>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell>{user.fullName || "-"}</TableCell>
-                      <TableCell>{user.email || "-"}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap items-center gap-1">
-                          <Badge variant="secondary">{roleLabels[user.role] || user.role}</Badge>
-                          {(user.additionalRoles?.length ?? 0) > 0 &&
-                            user.additionalRoles!.map((r) => (
-                              <Badge key={r} variant="outline" className="text-xs">
-                                +{roleLabels[r] || r}
-                              </Badge>
-                            ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>{user.institution || "БГУИР"}</TableCell>
-                      <TableCell>{user.documentCount || 0}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setSelectedUser(user)
-                              setFormData({
-                                username: user.username,
-                                password: "",
-                                fullName: user.fullName || "",
-                                email: user.email || "",
-                                role: user.role,
-                                additionalRoles: user.additionalRoles ?? [],
-                                institution: user.institution || "БГУИР",
-                              })
-                              setIsEditDialogOpen(true)
-                            }}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteUser(user.username)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Логин</TableHead>
+                      <TableHead>ФИО</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Тип</TableHead>
+                      <TableHead>Учреждение</TableHead>
+                      <TableHead>Документов</TableHead>
+                      <TableHead>Действия</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedUsers.map((user) => (
+                      <TableRow key={user.username}>
+                        <TableCell className="font-medium">{user.username}</TableCell>
+                        <TableCell>{user.fullName || "-"}</TableCell>
+                        <TableCell>{user.email || "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge variant="secondary">{roleLabels[user.role] || user.role}</Badge>
+                            {(user.additionalRoles?.length ?? 0) > 0 &&
+                              user.additionalRoles!.map((r) => (
+                                <Badge key={r} variant="outline" className="text-xs">
+                                  +{roleLabels[r] || r}
+                                </Badge>
+                              ))}
+                          </div>
+                        </TableCell>
+                        <TableCell>{user.institution || "БГУИР"}</TableCell>
+                        <TableCell>{user.documentCount || 0}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedUser(user)
+                                setFormData({
+                                  username: user.username,
+                                  password: "",
+                                  fullName: user.fullName || "",
+                                  email: user.email || "",
+                                  role: user.role,
+                                  additionalRoles: user.additionalRoles ?? [],
+                                  institution: user.institution || "БГУИР",
+                                })
+                                setIsEditDialogOpen(true)
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteUser(user.username)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                {filteredUsers.length > pageSize && (
+                  <div className="mt-4">
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setPage((p) => Math.max(1, p - 1))
+                            }}
+                          />
+                        </PaginationItem>
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                          <PaginationItem key={p}>
+                            <PaginationLink
+                              href="#"
+                              isActive={p === currentPage}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                setPage(p)
+                              }}
+                            >
+                              {p}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setPage((p) => Math.min(totalPages, p + 1))
+                            }}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

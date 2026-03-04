@@ -1,5 +1,5 @@
 {
-  "nextId": 12,
+  "nextId": 21,
   "idToCategory": {
     "1": "coursework",
     "2": "coursework",
@@ -11,6 +11,15 @@
     "8": "coursework",
     "9": "coursework",
     "10": "coursework",
-    "11": "coursework"
+    "11": "coursework",
+    "12": "coursework",
+    "13": "coursework",
+    "14": "coursework",
+    "15": "coursework",
+    "16": "coursework",
+    "17": "coursework",
+    "18": "coursework",
+    "19": "coursework",
+    "20": "coursework"
   }
 }

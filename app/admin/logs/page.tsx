@@ -18,6 +18,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { getSession } from "@/lib/auth"
 import * as XLSX from "xlsx"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination"
 
 interface LogEntry {
   timestamp: string
@@ -35,10 +43,16 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(true)
   const [levelFilter, setLevelFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     fetchLogs()
   }, [levelFilter])
+
+  // Сбрасываем страницу при изменении фильтра/поиска или самих логов
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, levelFilter, logs])
 
   const fetchLogs = async () => {
     try {
@@ -96,6 +110,11 @@ export default function LogsPage() {
       (log.action && log.action.toLowerCase().includes(searchQuery.toLowerCase()))
     return matchesSearch
   })
+
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const levelIcons = {
     info: Info,
@@ -178,39 +197,80 @@ export default function LogsPage() {
             {loading ? (
               <div className="text-center py-8 text-muted-foreground">Загрузка...</div>
             ) : (
-              <div className="max-h-[600px] overflow-y-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Дата и время</TableHead>
-                      <TableHead>Уровень</TableHead>
-                      <TableHead>Сообщение</TableHead>
-                      <TableHead>Пользователь</TableHead>
-                      <TableHead>Действие</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLogs.map((log, index) => {
-                      const Icon = levelIcons[log.level] || Info
-                      return (
-                        <TableRow key={index}>
-                          <TableCell className="font-mono text-sm">
-                            {new Date(log.timestamp).toLocaleString("ru-RU")}
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={levelColors[log.level]}>
-                              <Icon className="h-3 w-3 mr-1" />
-                              {log.level}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{log.message}</TableCell>
-                          <TableCell>{log.userId || "-"}</TableCell>
-                          <TableCell>{log.action || "-"}</TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+              <div className="space-y-4">
+                <div className="max-h-[600px] overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Дата и время</TableHead>
+                        <TableHead>Уровень</TableHead>
+                        <TableHead>Сообщение</TableHead>
+                        <TableHead>Пользователь</TableHead>
+                        <TableHead>Действие</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedLogs.map((log, index) => {
+                        const Icon = levelIcons[log.level] || Info
+                        return (
+                          <TableRow key={`${log.timestamp}-${index}`}>
+                            <TableCell className="font-mono text-sm">
+                              {new Date(log.timestamp).toLocaleString("ru-RU")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={levelColors[log.level]}>
+                                <Icon className="h-3 w-3 mr-1" />
+                                {log.level}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{log.message}</TableCell>
+                            <TableCell>{log.userId || "-"}</TableCell>
+                            <TableCell>{log.action || "-"}</TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {filteredLogs.length > pageSize && (
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setPage((p) => Math.max(1, p - 1))
+                          }}
+                        />
+                      </PaginationItem>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                        <PaginationItem key={p}>
+                          <PaginationLink
+                            href="#"
+                            isActive={p === currentPage}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setPage(p)
+                            }}
+                          >
+                            {p}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setPage((p) => Math.min(totalPages, p + 1))
+                          }}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                )}
               </div>
             )}
           </CardContent>

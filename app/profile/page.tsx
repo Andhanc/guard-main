@@ -64,6 +64,7 @@ export default function ProfilePage() {
   const [deleteConfirm, setDeleteConfirm] = useState<ProfileDocument | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const [savingId, setSavingId] = useState<number | null>(null)
 
   useEffect(() => {
     const drafts = documents.filter((d) => d.status === "draft")
@@ -131,6 +132,35 @@ export default function ProfilePage() {
       alert("Ошибка при удалении")
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleSaveAsFinal = async (doc: ProfileDocument) => {
+    if (!user) return
+    if (!doc.id) return
+
+    setSavingId(doc.id)
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "final", userId: user.username }),
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        // Обновляем статус в локальном состоянии
+        setDocuments((prev) =>
+          prev.map((d) => (d.id === doc.id ? { ...d, status: "final" as const } : d)),
+        )
+      } else {
+        alert(data.error || "Не удалось сохранить как финальную версию")
+      }
+    } catch (err) {
+      console.error("Error saving as final from profile:", err)
+      alert("Ошибка при сохранении как финальная версия")
+    } finally {
+      setSavingId(null)
     }
   }
 
@@ -328,6 +358,20 @@ export default function ProfilePage() {
                           >
                             {doc.status === "final" ? "Финальная версия" : "Черновик (до 24 ч)"}
                           </Badge>
+                          {doc.status === "draft" && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="gap-1.5"
+                              disabled={savingId === doc.id}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleSaveAsFinal(doc)
+                              }}
+                            >
+                              {savingId === doc.id ? "Сохранение..." : "Сохранить как финальная версия"}
+                            </Button>
+                          )}
                           {doc.reportViewUrl && (
                             <Button
                               variant="outline"

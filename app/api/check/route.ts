@@ -9,7 +9,7 @@ const NUM_HASHES = 128
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { content, topK = 5, institution, category } = body
+    const { content, topK = 5, institution, category, userId } = body
 
     if (!content) {
       return NextResponse.json({ success: false, error: "Content is required" }, { status: 400 })
@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
     }
 
     const documents = categoriesToCompare.length > 0
-      ? getAllDocumentsFromDb(undefined, institution, categoriesToCompare)
-      : getAllDocumentsFromDb(undefined, institution)
+      ? getAllDocumentsFromDb(userId, institution, categoriesToCompare)
+      : getAllDocumentsFromDb(userId, institution)
 
     if (documents.length === 0) {
       return NextResponse.json({
