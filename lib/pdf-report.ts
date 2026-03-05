@@ -133,12 +133,15 @@ function drawHeaderBlock(doc: jsPDF, margin: number, pageWidth: number): number 
   doc.setFontSize(9)
   doc.setFont(FONT, "normal")
   doc.setTextColor(0, 0, 0)
-  doc.text(
-    "Белорусский государственный университет информатики и радиоэлектроники",
-    margin + logoSize + 4,
-    y + logoSize / 2,
-    { align: "left", baseline: "middle" },
-  )
+
+  const textX = margin + logoSize + 4
+  const lineHeight = 4
+  const uniLine1 = "Белорусский государственный университет"
+  const uniLine2 = "информатики и радиоэлектроники"
+
+  // Название университета в две строки, выровнено по левому краю относительно логотипа
+  doc.text(uniLine1, textX, y + logoSize / 2 - lineHeight / 2)
+  doc.text(uniLine2, textX, y + logoSize / 2 + lineHeight / 2)
   y += logoSize + 6
   return y
 }
@@ -229,76 +232,224 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
 
   // ——— Блок 1: Идентификация (шапка) ———
   y = drawHeaderBlock(doc, margin, pageWidth)
-  // Небольшой дополнительный отступ между шапкой и заголовком "Справка"
-  y += 4
+  // Отступ сверху между шапкой и заголовком "Справка"
+  y += 10
 
-  doc.setFontSize(16)
+  // Заголовок "Справка"
+  doc.setFontSize(14)
   doc.setFont(FONT, "bold")
   doc.setTextColor(0, 0, 0)
   doc.text("Справка", margin, y)
   y += 7
-  doc.setFontSize(11)
-  doc.setFont(FONT, "normal")
-  doc.text("о результатах проверки текстового документа на наличие заимствований", margin, y)
-  y += 8
 
-  if (isFinal) {
-    doc.setFontSize(9)
-    doc.setFont(FONT, "bold")
-    doc.text("ПРОВЕРКА ВЫПОЛНЕНА В СИСТЕМЕ БГУИР.ПЛАГИАТ", margin, y)
-    y += 6
-  }
-
+  // Подзаголовок как на сайте: меньший кегль и серый цвет, в две строки
   doc.setFontSize(10)
   doc.setFont(FONT, "normal")
-  doc.text(`ФИО: ${result.author || "—"}`, margin, y)
-  y += 6
-  doc.text(`Тип работы: ${categoryLabel(result.category)}`, margin, y)
-  y += 6
-  doc.text(`Название работы: ${result.title || result.filename || "—"}`, margin, y, { maxWidth: pageWidth - 2 * margin })
-  y += 6
-  doc.text(`Дата проверки: ${formatDate(result.uploadDate)}`, margin, y)
-  y += 8
-  
-  // Размещаем подписи на разных строках, чтобы не накладывались
-  doc.text("Работу проверил(а): ___________________________", margin, y)
-  y += 6
-  doc.text("Подпись проверяющегося: ___________________________", margin, y)
-  y += 10
+  doc.setTextColor(110, 110, 120)
+  const subtitleLine1 = "о результатах проверки текстового документа"
+  const subtitleLine2 = "на наличие заимствований"
+  const subtitleLineHeight = 4.2
+  doc.text(subtitleLine1, margin, y)
+  y += subtitleLineHeight
+  doc.text(subtitleLine2, margin, y)
+  // Отступ снизу между блоком заголовка и остальным содержимым
+  y += 12
+  // Вернём основной цвет текста для последующих блоков
+  doc.setTextColor(0, 0, 0)
 
-  // ——— Блок 2: Результаты ———
+  if (isFinal) {
+    // Текст "ПРОВЕРКА ВЫПОЛНЕНА В СИСТЕМЕ БГУИР.ПЛАГИАТ" без верхней линии
+    doc.setFontSize(9)
+    doc.setFont(FONT, "bold")
+    doc.setTextColor(0, 0, 0)
+    doc.text("ПРОВЕРКА ВЫПОЛНЕНА В СИСТЕМЕ БГУИР.ПЛАГИАТ", margin, y)
+    y += 5
+
+    // Линия под текстом, как в оригинальном бланке
+    doc.setDrawColor(230, 235, 246)
+    doc.setLineWidth(0.4)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 6
+
+    // Блок с реквизитами работы в две колонки
+    const labelX = margin
+    const valueX = margin + 40
+    const rowHeight = 6
+
+    doc.setFontSize(8)
+    
+
+    // ФИО
+    doc.setFont(FONT, "normal")
+    doc.setTextColor(0, 0, 0)
+    doc.text("ФИО:", labelX, y)
+    doc.setFont(FONT, "normal")
+    doc.setTextColor(110, 110, 120)
+    doc.text(result.author || "—", valueX, y)
+    y += rowHeight
+
+    // Тип работы
+    doc.setFont(FONT, "normal")
+    doc.setTextColor(0, 0, 0)
+    doc.text("Тип работы:", labelX, y)
+    doc.setFont(FONT, "normal")
+    doc.setTextColor(110, 110, 120)
+    doc.text(categoryLabel(result.category), valueX, y)
+    y += rowHeight
+
+    // Название работы (многострочное поле справа)
+    doc.setFont(FONT, "normal")
+    doc.setTextColor(0, 0, 0)
+    doc.text("Название работы:", labelX, y)
+    doc.setFont(FONT, "normal")
+    doc.setTextColor(110, 110, 120)
+    const workTitle = result.title || result.filename || "—"
+    const titleMaxWidth = pageWidth - valueX - margin
+    const titleLines = doc.splitTextToSize(workTitle, titleMaxWidth)
+    doc.text(titleLines, valueX, y, { maxWidth: titleMaxWidth })
+    const extraTitleLines = Math.max(0, titleLines.length - 1)
+    y += rowHeight + extraTitleLines * 4
+
+    // Нижняя разделительная линия под блоком реквизитов
+    doc.setDrawColor(230, 235, 246)
+    doc.setLineWidth(0.4)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 8
+
+    // Вернём основной цвет для дальнейшего текста
+    doc.setTextColor(0, 0, 0)
+  } else {
+    // Упрощённый вариант для черновика без декоративных линий
+    doc.setFontSize(9)
+    doc.setFont(FONT, "normal")
+    doc.setTextColor(0, 0, 0)
+    doc.text(`ФИО: ${result.author || "—"}`, margin, y)
+    y += 6
+    doc.text(`Тип работы: ${categoryLabel(result.category)}`, margin, y)
+    y += 6
+    doc.text(`Название работы: ${result.title || result.filename || "—"}`, margin, y, {
+      maxWidth: pageWidth - 2 * margin,
+    })
+    y += 8
+  }
+
+  // ——— Блок 2: Результаты ——— (сразу после блока ФИО / Тип / Название)
   const matchesPercent = Math.round((100 - result.uniquenessPercent) * 100) / 100
   const origPercent = Math.round(result.uniquenessPercent * 100) / 100
 
-  doc.setFontSize(11)
-  doc.setFont(FONT, "bold")
-  doc.text("Результаты:", margin, y)
+  // Небольшой отступ сверху перед блоком результатов (подвинули ближе к верхней линии)
+  
+
+  const blockLabelX = margin
+  const metricsStartX = margin + 40 // чуть дальше от левого края, чтобы не наезжать на подписи
+  const valueX = pageWidth - margin
+  const rowHeight = 6
+
+  // Заголовок блока слева
+  doc.setFontSize(9)
+  doc.setFont(FONT, "normal")
+  doc.setTextColor(0, 0, 0)
+  doc.text("Результаты:", blockLabelX, y)
+
+  // Общие настройки для строк с метриками
+  doc.setFontSize(9)
+  const grayText = [110, 110, 120] as const
+  const barGray = [230, 235, 246] as const
+
+  // Ширина полосы между подписями и процентами.
+  // Делаем короче, чтобы справа оставался зазор и проценты не заходили на полосы.
+  const barX = metricsStartX + 32
+  const percentGap = 18
+  const barWidth = valueX - percentGap - barX
+  const barHeight = 1.8
+
+  // Первая строка: Совпадения
+  let rowY = y
+  doc.setFont(FONT, "normal")
+  doc.setTextColor(...grayText)
+  doc.text("Совпадения", metricsStartX, rowY)
+
+  doc.setFillColor(...barGray)
+  doc.rect(barX, rowY - barHeight / 2, barWidth, barHeight, "F")
+  doc.setFillColor(255, 165, 0)
+  doc.rect(barX, rowY - barHeight / 2, (barWidth * matchesPercent) / 100, barHeight, "F")
+
+  doc.setTextColor(...grayText)
+  doc.text(`${formatPercent(matchesPercent)}%`, valueX, rowY, { align: "right" })
+
+  // Вторая строка: Оригинальность
+  rowY += rowHeight
+  doc.setTextColor(...grayText)
+  doc.text("Оригинальность", metricsStartX, rowY)
+
+  doc.setFillColor(...barGray)
+  doc.rect(barX, rowY - barHeight / 2, barWidth, barHeight, "F")
+  // Более тёмный синий для полосы оригинальности
+  doc.setFillColor(32, 82, 181)
+  doc.rect(barX, rowY - barHeight / 2, (barWidth * origPercent) / 100, barHeight, "F")
+
+  doc.setTextColor(...grayText)
+  doc.text(`${formatPercent(origPercent)}%`, valueX, rowY, { align: "right" })
+
+  // Нижняя граница блока результатов
+  y = rowY + 4
+  doc.setDrawColor(230, 235, 246)
+  doc.setLineWidth(0.4)
+  doc.line(margin, y, pageWidth - margin, y)
   y += 8
 
-  doc.setFontSize(10)
+  // Вернём базовый цвет текста
+  doc.setTextColor(0, 0, 0)
+
+  // Блок "Дата проверки / Работу проверил / Дата / Подпись проверяющего"
+  doc.setFontSize(8)
+  doc.setTextColor(0, 0, 0)
+  const baseLabelX = margin
+  const dateValueX = margin + 36
+  const underlineColor = [200, 200, 200] as const
+
+  // Строка 1: "Дата проверки: 24.10.2024"
   doc.setFont(FONT, "normal")
-  const barW = 70
-  const barH = 5
-  const barY = y - 3
-  const gray = [230, 230, 230]
+  doc.text("Дата проверки:", baseLabelX, y)
+  doc.setFont(FONT, "normal")
+  doc.setTextColor(0, 0, 0)
+  const dateText = formatDate(result.uploadDate)
+  doc.text(dateText, dateValueX, y)
+  // Чуть больший отступ перед следующей строкой
+  y += 12
 
-  doc.setFillColor(gray[0], gray[1], gray[2])
-  doc.rect(margin, barY, barW, barH, "F")
-  doc.setFillColor(255, 165, 0)
-  doc.rect(margin, barY, barW * (matchesPercent / 100), barH, "F")
-  doc.setDrawColor(200, 200, 200)
-  doc.rect(margin, barY, barW, barH, "S")
-  doc.text(`Совпадения ${formatPercent(matchesPercent)}%`, margin + barW + 6, y)
-  y += 10
+  // Строка 2: "Работу проверил (а): ____________" — длинная линия справа от подписи
+  doc.setFont(FONT, "normal")
+  doc.setTextColor(0, 0, 0)
+  const checkedLabel = "Работу проверил (а):"
+  doc.text(checkedLabel, baseLabelX, y)
+  const checkedLabelWidth = (doc.getTextWidth ? doc.getTextWidth(checkedLabel) : 48) as number
+  const checkedLineStartX = baseLabelX + checkedLabelWidth + 4
+  const checkedLineEndX = pageWidth - margin
+  doc.setDrawColor(...underlineColor)
+  doc.setLineWidth(0.2)
+  doc.line(checkedLineStartX, y + 1.2, checkedLineEndX, y + 1.2)
+  // Увеличенный отступ сверху для нижней строки "Дата / Подпись проверяющего"
+  y += 16
 
-  const bar2Y = y - 3
-  doc.setFillColor(gray[0], gray[1], gray[2])
-  doc.rect(margin, bar2Y, barW, barH, "F")
-  doc.setFillColor(56, 115, 209)
-  doc.rect(margin, bar2Y, barW * (origPercent / 100), barH, "F")
-  doc.setDrawColor(200, 200, 200)
-  doc.rect(margin, bar2Y, barW, barH, "S")
-  doc.text(`Оригинальность ${formatPercent(origPercent)}%`, margin + barW + 6, y)
+  // Строка 3: "Дата: ________       Подпись проверяющего: ________"
+  const bottomDateLabel = "Дата:"
+  doc.text(bottomDateLabel, baseLabelX, y)
+  const bottomDateLabelWidth = (doc.getTextWidth ? doc.getTextWidth(bottomDateLabel) : 18) as number
+  const bottomDateLineStartX = baseLabelX + bottomDateLabelWidth + 4
+  const bottomDateLineWidth = 35
+  doc.setDrawColor(...underlineColor)
+  doc.setLineWidth(0.2)
+  doc.line(bottomDateLineStartX, y + 1.2, bottomDateLineStartX + bottomDateLineWidth, y + 1.2)
+
+  const signLabel = "Подпись проверяющего:"
+  const signLabelX = pageWidth / 2
+  doc.text(signLabel, signLabelX, y)
+  const signLabelWidth = (doc.getTextWidth ? doc.getTextWidth(signLabel) : 52) as number
+  const signLineStartX = signLabelX + signLabelWidth + 4
+  const signLineEndX = pageWidth - margin
+  doc.setDrawColor(...underlineColor)
+  doc.line(signLineStartX, y + 1.2, signLineEndX, y + 1.2)
   y += 12
 
   // ——— Блок 3: QR-коды (между результатами и таблицей) ———
@@ -309,40 +460,57 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
       const sigOriginal = signDocumentAccess("original", id)
       const reportPdfUrl = `${baseUrl}/api/report/${id}/view?sig=${encodeURIComponent(sigReport)}`
       const originalWorkUrl = `${baseUrl}/api/report/${id}/original?sig=${encodeURIComponent(sigOriginal)}`
-      const qrSize = 26
-      const qrGap = 18
-      // Ширина подписи не должна "залезать" под соседний QR:
-      // captionW <= qrSize + qrGap - небольшой отступ.
-      const captionW = qrSize + qrGap - 8 // 26 + 18 - 8 = 36 мм
+
+      // Два блока: [QR] [текст справа], расположенные в одну строку.
+      const qrSize = 30
+      const blockGap = 16
+      const availableWidth = pageWidth - 2 * margin
+      const blockWidth = (availableWidth - blockGap) / 2
+
+      const block1X = margin
+      const block2X = margin + blockWidth + blockGap
+      const qr1X = block1X
+      const qr2X = block2X
+      const qrY = y
+
+      const textOffsetX = 6
+      const captionW = blockWidth - qrSize - textOffsetX
 
       const qr1 = await QRCode.toDataURL(reportPdfUrl, { width: 200, margin: 1 })
       const qr2 = await QRCode.toDataURL(originalWorkUrl, { width: 200, margin: 1 })
 
-      doc.addImage(qr1, "PNG", margin, y, qrSize, qrSize)
+      doc.addImage(qr1, "PNG", qr1X, qrY, qrSize, qrSize)
       doc.setFontSize(8)
       doc.setFont(FONT, "normal")
-      // Текст под QR‑кодами рисуем многострочно, чтобы подписи не наезжали друг на друга.
+      // Текст располагаем справа от каждого QR‑кода, как на оригинальном бланке.
       const qr1Lines = doc.splitTextToSize(
-        "Для просмотра PDF-отчёта (справки) отсканируйте QR-код",
+        "Для подтверждения подлинности и актуальности данной справки отсканируйте QR-код",
         captionW,
       )
       const qr2Lines = doc.splitTextToSize(
-        "Для просмотра оригинальной работы (загруженный документ) отсканируйте QR-код",
+        "Для просмотра оригинальной электронной версии документа отсканируйте QR-код",
         captionW,
       )
-      const qrTextY = y + qrSize + 4
+      const textY = qrY + 6
       const lineHeight = 4 // мм при размере шрифта 8
 
-      doc.text(qr1Lines, margin, qrTextY, { maxWidth: captionW })
+      doc.text(qr1Lines, qr1X + qrSize + textOffsetX, textY, {
+        maxWidth: captionW,
+        align: "left",
+      })
 
-      doc.addImage(qr2, "PNG", margin + qrSize + qrGap, y, qrSize, qrSize)
-      doc.text(qr2Lines, margin + qrSize + qrGap, qrTextY, { maxWidth: captionW })
+      doc.addImage(qr2, "PNG", qr2X, qrY, qrSize, qrSize)
+      doc.text(qr2Lines, qr2X + qrSize + textOffsetX, textY, {
+        maxWidth: captionW,
+        align: "left",
+      })
 
       const maxLines = Math.max(qr1Lines.length, qr2Lines.length)
       const textBlockHeight = maxLines * lineHeight
 
-      // Высота QR (26) + отступ (4) + высота текста + дополнительный зазор до следующего блока
-      y = qrTextY + textBlockHeight + 8
+      // Высота блока = максимум из высоты QR и высоты текста
+      const blockHeight = Math.max(qrSize, textBlockHeight + (textY - qrY))
+      y = qrY + blockHeight + 10
     } catch (e) {
       console.error("Error generating QR codes:", e)
     }
@@ -366,7 +534,7 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
     doc.addPage()
     y = margin
   }
-  doc.setFontSize(11)
+  doc.setFontSize(9)
   doc.setFont(FONT, "bold")
   doc.text("Источники", margin, y)
   y += 8
@@ -380,14 +548,22 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
 
   doc.setFontSize(9)
   doc.setFont(FONT, "bold")
-  doc.rect(margin, headY - 5, colNo, rowH, "S")
-  doc.text("№", margin + colNo / 2, headY + 0.5, { align: "center" })
-  doc.rect(margin + colNo, headY - 5, colAuthors, rowH, "S")
-  doc.text("Авторы", margin + colNo + colAuthors / 2, headY + 0.5, { align: "center" })
-  doc.rect(margin + colNo + colAuthors, headY - 5, colShare, rowH, "S")
-  doc.text("Доля", margin + colNo + colAuthors + colShare / 2, headY + 0.5, { align: "center" })
-  doc.rect(margin + colNo + colAuthors + colShare, headY - 5, colSource, rowH, "S")
-  doc.text("Источник", margin + colNo + colAuthors + colShare + colSource / 2, headY + 0.5, { align: "center" })
+  // Линии над и под строкой заголовка таблицы в общем стиле (слегка голубые)
+  const headerTopY = headY - 3.5
+  const headerBottomY = headY + 3.5
+  doc.setDrawColor(230, 235, 246)
+  doc.setLineWidth(0.4)
+  doc.line(margin, headerTopY, pageWidth - margin, headerTopY)
+  doc.line(margin, headerBottomY, pageWidth - margin, headerBottomY)
+
+  // Текст заголовка, выровненный по центру между линиями
+  const headerTextY = headY + 0.1
+  doc.text("№", margin + colNo / 2, headerTextY, { align: "center" })
+  doc.text("Авторы", margin + colNo + colAuthors / 2, headerTextY, { align: "center" })
+  doc.text("Доля", margin + colNo + colAuthors + colShare / 2, headerTextY, { align: "center" })
+  doc.text("Источник", margin + colNo + colAuthors + colShare + colSource / 2, headerTextY, {
+    align: "center",
+  })
   y += rowH + 2
 
   doc.setFont(FONT, "normal")
@@ -397,27 +573,21 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
         doc.addPage()
         y = margin
       }
-      const rowY = y - 4
-      doc.rect(margin, rowY, colNo, rowH, "S")
+      // Только текст строк без прямоугольников вокруг
       doc.text(String(idx + 1), margin + colNo / 2, y + 0.5, { align: "center" })
-      doc.rect(margin + colNo, rowY, colAuthors, rowH, "S")
       doc.text((s.userId ?? "—").slice(0, 14), margin + colNo + 2, y + 0.5)
-      doc.rect(margin + colNo + colAuthors, rowY, colShare, rowH, "S")
-      doc.text(formatPercent(s.similarity), margin + colNo + colAuthors + colShare / 2, y + 0.5, { align: "center" })
-      doc.rect(margin + colNo + colAuthors + colShare, rowY, colSource, rowH, "S")
+      doc.text(formatPercent(s.similarity), margin + colNo + colAuthors + colShare / 2, y + 0.5, {
+        align: "center",
+      })
       const title = (s.title || "—").slice(0, 55)
       doc.text(title, margin + colNo + colAuthors + colShare + 2, y + 0.5)
       y += rowH + 2
     })
   } else {
-    const rowY = y - 4
-    doc.rect(margin, rowY, colNo, rowH, "S")
+    // Строка-заглушка без рамок
     doc.text("1", margin + colNo / 2, y + 0.5, { align: "center" })
-    doc.rect(margin + colNo, rowY, colAuthors, rowH, "S")
     doc.text("—", margin + colNo + 2, y + 0.5)
-    doc.rect(margin + colNo + colAuthors, rowY, colShare, rowH, "S")
     doc.text("—", margin + colNo + colAuthors + colShare / 2, y + 0.5, { align: "center" })
-    doc.rect(margin + colNo + colAuthors + colShare, rowY, colSource, rowH, "S")
     doc.text("Совпадений не найдено", margin + colNo + colAuthors + colShare + 2, y + 0.5)
     y += rowH + 2
   }
