@@ -31,6 +31,8 @@ export async function GET(
       const sig = hasReport ? signDocumentAccess("report", doc.id) : null
       const reportViewUrl =
         baseUrl && sig ? `${baseUrl}/api/report/${doc.id}/view?sig=${encodeURIComponent(sig)}` : null
+      const reportDownloadUrl =
+        baseUrl && sig ? `${baseUrl}/api/report/${doc.id}/download?sig=${encodeURIComponent(sig)}` : null
 
       return {
         id: doc.id,
@@ -42,6 +44,7 @@ export async function GET(
         uploadDate: doc.uploadDate,
         status: doc.status,
         reportViewUrl,
+        reportDownloadUrl,
       }
     })
 

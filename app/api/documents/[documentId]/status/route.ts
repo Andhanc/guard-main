@@ -1,7 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getDocumentByIdFromDb, updateDocumentStatus } from "@/lib/local-storage"
+import { getDocumentByIdFromDb, updateDocumentStatus, getReportPdfPath, saveReportPdf } from "@/lib/local-storage"
+import { generatePDFReport } from "@/lib/pdf-report"
 import { logInfo, logError } from "@/lib/logger"
 import type { DocumentStatus } from "@/lib/local-storage"
+
+function getBaseUrl(request: NextRequest): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
+  const proto = request.headers.get("x-forwarded-proto") ?? "http"
+  return host ? `${proto === "https" ? "https" : "http"}://${host}` : ""
+}
 
 /**
  * PATCH /api/documents/:documentId/status
@@ -50,6 +58,41 @@ export async function PATCH(
     const updated = updateDocumentStatus(id, status as DocumentStatus)
 
     if (updated) {
+      // Если переводим документ в финальный статус из профиля и PDF-отчета еще нет —
+      // генерируем его на основе сохраненных данных документа.
+      if (status === "final" && !getReportPdfPath(id)) {
+        try {
+          const uniquenessPercent =
+            doc.originalityPercent !== null && doc.originalityPercent !== undefined
+              ? doc.originalityPercent
+              : 100
+          const pdfBytes = await generatePDFReport({
+            filename: doc.filename || `${doc.title || "document"}.txt`,
+            title: doc.title,
+            author: doc.author || undefined,
+            category: doc.category,
+            uniquenessPercent,
+            totalDocumentsChecked: 0,
+            similarDocuments: [],
+            processingTimeMs: 0,
+            uploadDate: doc.uploadDate,
+            status: "final",
+            documentId: id,
+            baseUrl: getBaseUrl(request),
+          })
+          saveReportPdf(id, Buffer.from(pdfBytes), uniquenessPercent)
+        } catch (e) {
+          // Не блокируем смену статуса, если генерация отчета не удалась
+          logError(
+            "Не удалось сгенерировать отчет при финализации из профиля",
+            e instanceof Error ? e.message : String(e),
+            userId,
+            undefined,
+            "document_update",
+          )
+        }
+      }
+
       logInfo(
         `Статус документа изменен на ${status}`,
         userId,

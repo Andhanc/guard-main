@@ -130,6 +130,8 @@ export default function StatisticsPage() {
   const [pieChartEndDate, setPieChartEndDate] = useState("")
   const [pieChartData, setPieChartData] = useState<Array<{ category: string; count: number }>>([])
   const [pieChartLoading, setPieChartLoading] = useState(false)
+  const [tablePage, setTablePage] = useState(1)
+  const ITEMS_PER_PAGE = 10
 
   useEffect(() => {
     fetch("/api/document-types")
@@ -143,6 +145,10 @@ export default function StatisticsPage() {
   useEffect(() => {
     fetchStatistics()
   }, [tableFilters])
+
+  useEffect(() => {
+    setTablePage(1)
+  }, [tableFilters, stats?.documents?.length])
 
   useEffect(() => {
     setPieChartLoading(true)
@@ -302,6 +308,12 @@ export default function StatisticsPage() {
       </div>
     )
   }
+
+  const documents = stats.documents ?? []
+  const totalPages = Math.max(1, Math.ceil(documents.length / ITEMS_PER_PAGE))
+  const safePage = Math.min(tablePage, totalPages)
+  const startIdx = (safePage - 1) * ITEMS_PER_PAGE
+  const pagedDocuments = documents.slice(startIdx, startIdx + ITEMS_PER_PAGE)
 
   return (
     <div className="min-h-screen bg-background">
@@ -492,7 +504,7 @@ export default function StatisticsPage() {
           <CardHeader>
             <CardTitle>Таблица</CardTitle>
             <CardDescription>
-              ID документа, ID пользователя, тип работы, статус документа (Финальная/черновая), процент оригинальности, процент заимствования, дата загрузки. Всего: {(stats.documents ?? []).length}
+              ID документа, ID пользователя, тип работы, статус документа (Финальная/черновая), процент оригинальности, процент заимствования, дата загрузки. Всего: {documents.length}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -510,8 +522,8 @@ export default function StatisticsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(stats.documents ?? []).length > 0 ? (
-                    (stats.documents ?? []).map((doc) => (
+                  {documents.length > 0 ? (
+                    pagedDocuments.map((doc) => (
                       <TableRow key={doc.id}>
                         <TableCell className="font-mono text-sm">#{doc.id}</TableCell>
                         <TableCell className="font-mono text-sm">{doc.userId ?? "—"}</TableCell>
@@ -554,6 +566,34 @@ export default function StatisticsPage() {
                 </TableBody>
               </Table>
             </div>
+            {documents.length > 0 && (
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Показано {startIdx + 1}-{Math.min(startIdx + ITEMS_PER_PAGE, documents.length)} из {documents.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage <= 1}
+                    onClick={() => setTablePage((p) => Math.max(1, p - 1))}
+                  >
+                    Назад
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Страница {safePage} из {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setTablePage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Вперёд
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

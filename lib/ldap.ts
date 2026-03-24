@@ -17,6 +17,7 @@ export interface LDAPConfig {
   emailAttribute?: string
   firstNameAttribute?: string // givenName
   lastNameAttribute?: string // sn
+  middleNameAttribute?: string // отчество (например, middleName)
   fullNameAttribute?: string // для обратной совместимости
   enabled: boolean
   timeout?: number
@@ -44,6 +45,7 @@ export function getLDAPConfig(): LDAPConfig | null {
   const emailAttribute = process.env.LDAP_EMAIL_ATTRIBUTE || "mail"
   const firstNameAttribute = process.env.LDAP_FIRSTNAME_ATTRIBUTE || "givenName"
   const lastNameAttribute = process.env.LDAP_LASTNAME_ATTRIBUTE || "sn"
+  const middleNameAttribute = process.env.LDAP_MIDDLENAME_ATTRIBUTE || "middleName"
   const fullNameAttribute = process.env.LDAP_FULLNAME_ATTRIBUTE // опционально
   const timeout = parseInt(process.env.LDAP_TIMEOUT || "10000", 10)
 
@@ -80,6 +82,7 @@ export function getLDAPConfig(): LDAPConfig | null {
     emailAttribute,
     firstNameAttribute,
     lastNameAttribute,
+    middleNameAttribute,
     fullNameAttribute,
     enabled: true,
     timeout,
@@ -143,6 +146,7 @@ export async function authenticateLDAP(
             config.emailAttribute,
             config.firstNameAttribute,
             config.lastNameAttribute,
+            config.middleNameAttribute,
             config.fullNameAttribute,
           ].filter(Boolean) as string[]
 
@@ -179,9 +183,15 @@ export async function authenticateLDAP(
                       ? userEntry[config.lastNameAttribute][0] 
                       : userEntry[config.lastNameAttribute])
                   : null
+                
+                const middleName = config.middleNameAttribute && userEntry[config.middleNameAttribute]
+                  ? (Array.isArray(userEntry[config.middleNameAttribute])
+                      ? userEntry[config.middleNameAttribute][0]
+                      : userEntry[config.middleNameAttribute])
+                  : null
 
-                if (firstName && lastName) {
-                  ldapUser.fullName = `${firstName} ${lastName}`.trim()
+                if (firstName || lastName || middleName) {
+                  ldapUser.fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim()
                 } else if (config.fullNameAttribute && userEntry[config.fullNameAttribute]) {
                   const fullName = userEntry[config.fullNameAttribute]
                   ldapUser.fullName = Array.isArray(fullName) ? fullName[0] : fullName
@@ -210,6 +220,7 @@ export async function authenticateLDAP(
       config.emailAttribute,
       config.firstNameAttribute,
       config.lastNameAttribute,
+      config.middleNameAttribute,
       config.fullNameAttribute,
     ].filter(Boolean) as string[]
 
@@ -280,17 +291,19 @@ export async function authenticateLDAP(
             ? userEntry[config.lastNameAttribute][0] 
             : userEntry[config.lastNameAttribute])
         : null
+      
+      const middleName = config.middleNameAttribute && userEntry[config.middleNameAttribute]
+        ? (Array.isArray(userEntry[config.middleNameAttribute])
+            ? userEntry[config.middleNameAttribute][0]
+            : userEntry[config.middleNameAttribute])
+        : null
 
-      if (firstName && lastName) {
-        ldapUser.fullName = `${firstName} ${lastName}`.trim()
+      if (firstName || lastName || middleName) {
+        ldapUser.fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim()
       } else if (config.fullNameAttribute && userEntry[config.fullNameAttribute]) {
         // Fallback на полное имя, если задано
         const fullName = userEntry[config.fullNameAttribute]
         ldapUser.fullName = Array.isArray(fullName) ? fullName[0] : fullName
-      } else if (firstName) {
-        ldapUser.fullName = firstName
-      } else if (lastName) {
-        ldapUser.fullName = lastName
       }
 
       logInfo("LDAP аутентификация успешна", username, undefined, "ldap")
@@ -353,6 +366,7 @@ export async function getUserInfoLDAP(username: string): Promise<LDAPUser | null
       config.emailAttribute,
       config.firstNameAttribute,
       config.lastNameAttribute,
+      config.middleNameAttribute,
       config.fullNameAttribute,
     ].filter(Boolean) as string[]
 
@@ -402,9 +416,15 @@ export async function getUserInfoLDAP(username: string): Promise<LDAPUser | null
           ? userEntry[config.lastNameAttribute][0] 
           : userEntry[config.lastNameAttribute])
       : null
+    
+    const middleName = config.middleNameAttribute && userEntry[config.middleNameAttribute]
+      ? (Array.isArray(userEntry[config.middleNameAttribute])
+          ? userEntry[config.middleNameAttribute][0]
+          : userEntry[config.middleNameAttribute])
+      : null
 
-    if (firstName && lastName) {
-      ldapUser.fullName = `${firstName} ${lastName}`.trim()
+    if (firstName || lastName || middleName) {
+      ldapUser.fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim()
     } else if (config.fullNameAttribute && userEntry[config.fullNameAttribute]) {
       const fullName = userEntry[config.fullNameAttribute]
       ldapUser.fullName = Array.isArray(fullName) ? fullName[0] : fullName

@@ -35,6 +35,7 @@ Copy-Item .env.local.example .env.local
 | `LDAP_EMAIL_ATTRIBUTE` | Атрибут email | Нет | `mail` |
 | `LDAP_FIRSTNAME_ATTRIBUTE` | Атрибут имени | Нет | `givenName` |
 | `LDAP_LASTNAME_ATTRIBUTE` | Атрибут фамилии | Нет | `sn` |
+| `LDAP_MIDDLENAME_ATTRIBUTE` | Атрибут отчества | Нет | `middleName` |
 | `LDAP_TIMEOUT` | Таймаут подключения (мс) | Нет | `10000` |
 
 **Пример для БГУИР:**
@@ -50,6 +51,7 @@ LDAP_USERNAME_ATTRIBUTE=uid
 LDAP_EMAIL_ATTRIBUTE=mail
 LDAP_FIRSTNAME_ATTRIBUTE=givenName
 LDAP_LASTNAME_ATTRIBUTE=sn
+LDAP_MIDDLENAME_ATTRIBUTE=middleName
 LDAP_TIMEOUT=10000
 ```
 

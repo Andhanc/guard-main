@@ -11,6 +11,7 @@ import {
   Mail,
   UserCircle,
   ExternalLink,
+  Download,
   Trash2,
   Clock,
 } from "lucide-react"
@@ -40,6 +41,7 @@ interface ProfileDocument {
   uploadDate: string
   status: "draft" | "final"
   reportViewUrl: string | null
+  reportDownloadUrl: string | null
 }
 
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000
@@ -78,16 +80,18 @@ export default function ProfilePage() {
     return () => clearInterval(t)
   }, [documents])
 
-  const fetchDocuments = () => {
+  const fetchDocuments = async () => {
     const currentUser = getSession()
     if (!currentUser) return
-    fetch(`/api/documents/user/${currentUser.username}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setDocuments(data.documents)
-      })
-      .catch((err) => console.error("Error fetching documents:", err))
-      .finally(() => setLoading(false))
+    try {
+      const res = await fetch(`/api/documents/user/${currentUser.username}`)
+      const data = await res.json()
+      if (data.success) setDocuments(data.documents)
+    } catch (err) {
+      console.error("Error fetching documents:", err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -108,6 +112,17 @@ export default function ProfilePage() {
 
   const handleOpenReport = (doc: ProfileDocument) => {
     if (doc.reportViewUrl) window.open(doc.reportViewUrl, "_blank", "noopener,noreferrer")
+  }
+
+  const handleDownloadReport = (doc: ProfileDocument) => {
+    if (!doc.reportDownloadUrl) return
+    const link = document.createElement("a")
+    link.href = doc.reportDownloadUrl
+    link.target = "_blank"
+    link.rel = "noopener noreferrer"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const handleDeleteClick = (doc: ProfileDocument) => setDeleteConfirm(doc)
@@ -149,10 +164,8 @@ export default function ProfilePage() {
 
       const data = await res.json()
       if (data.success) {
-        // Обновляем статус в локальном состоянии
-        setDocuments((prev) =>
-          prev.map((d) => (d.id === doc.id ? { ...d, status: "final" as const } : d)),
-        )
+        // Перезапрашиваем документы, чтобы сразу получить reportViewUrl/reportDownloadUrl
+        await fetchDocuments()
       } else {
         alert(data.error || "Не удалось сохранить как финальную версию")
       }
@@ -384,6 +397,20 @@ export default function ProfilePage() {
                             >
                               <ExternalLink className="h-4 w-4" />
                               Открыть отчёт
+                            </Button>
+                          )}
+                          {doc.reportDownloadUrl && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="gap-1.5 bg-black text-white border border-black hover:bg-black/90 dark:bg-black dark:text-white dark:border-black dark:hover:bg-black/90"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDownloadReport(doc)
+                              }}
+                            >
+                              <Download className="h-4 w-4" />
+                              Скачать отчёт
                             </Button>
                           )}
                           <Button

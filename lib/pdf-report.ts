@@ -6,6 +6,7 @@
 
 // @ts-ignore - jsPDF может иметь проблемы с типами
 import jsPDF from "jspdf"
+// @ts-ignore - для qrcode может отсутствовать declaration file
 import QRCode from "qrcode"
 import fs from "fs"
 import path from "path"
@@ -126,7 +127,7 @@ function drawHeaderBlock(doc: jsPDF, margin: number, pageWidth: number): number 
 
   // Если логотип не найден, используем fallback - синий квадрат
   if (!logoLoaded) {
-    doc.setFillColor(...blue.map((c) => c * 255))
+    doc.setFillColor(blue[0] * 255, blue[1] * 255, blue[2] * 255)
     doc.rect(margin, y, logoSize, logoSize, "F")
   }
 
@@ -193,7 +194,7 @@ function drawFooterBlock(doc: jsPDF, pageWidth: number, pageHeight: number, marg
 
   // Если логотип не найден, используем fallback - синий квадрат
   if (!logoLoaded) {
-    doc.setFillColor(...blue.map((c) => c * 255))
+    doc.setFillColor(blue[0] * 255, blue[1] * 255, blue[2] * 255)
     doc.rect(margin, y, logoSize, logoSize, "F")
   }
 
@@ -217,7 +218,6 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
   doc.setProperties({
     title: "Справка о результатах проверки на заимствования",
     creator: "БГУИР.ПЛАГИАТ",
-    producer: "БГУИР.ПЛАГИАТ",
   })
   loadDejaVuFonts(doc)
   doc.setFont(FONT, "normal")
@@ -390,6 +390,19 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
 
   doc.setTextColor(...grayText)
   doc.text(`${formatPercent(origPercent)}%`, valueX, rowY, { align: "right" })
+
+  // Третья строка: ИИ (статичная линия 0%)
+  rowY += rowHeight
+  doc.setTextColor(...grayText)
+  doc.text("ИИ", metricsStartX, rowY)
+
+  doc.setFillColor(...barGray)
+  doc.rect(barX, rowY - barHeight / 2, barWidth, barHeight, "F")
+  doc.setFillColor(128, 82, 255) // фиолетовый
+  doc.rect(barX, rowY - barHeight / 2, 0, barHeight, "F")
+
+  doc.setTextColor(...grayText)
+  doc.text(`${formatPercent(0)}%`, valueX, rowY, { align: "right" })
 
   // Нижняя граница блока результатов
   y = rowY + 4
