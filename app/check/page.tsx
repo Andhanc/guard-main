@@ -51,6 +51,10 @@ interface CheckResult {
   similarDocuments: SimilarDocument[]
   processingTimeMs: number
   message?: string
+  /** Векторный плагиат (Python / Qdrant), если подключён ANALYSIS_SERVICE_URL */
+  mlPlagiarismPercent?: number
+  /** Оценка AI (Python), если подключён сервис */
+  mlAiPercent?: number
 }
 
 export default function CheckPage() {
@@ -155,6 +159,11 @@ export default function CheckPage() {
           uploadFormData.append("userId", user?.username || "")
           uploadFormData.append("institution", user?.institution || "БГУИР")
           uploadFormData.append("content", parsedFile.text)
+
+          if (typeof data.mlPlagiarismPercent === "number" && typeof data.mlAiPercent === "number") {
+            uploadFormData.append("plagiarism_percent_ml", String(data.mlPlagiarismPercent))
+            uploadFormData.append("ai_percent_ml", String(data.mlAiPercent))
+          }
 
           const uploadRes = await fetch("/api/upload", {
             method: "POST",
@@ -430,6 +439,26 @@ export default function CheckPage() {
                                   {result.similarDocuments.filter((d: any) => d.similarity > 10).length}
                                 </span>
                               </div>
+                              {(typeof result.mlPlagiarismPercent === "number" ||
+                                typeof result.mlAiPercent === "number") && (
+                                <div className="sm:col-span-2 rounded-md border bg-muted/40 px-3 py-2 space-y-1">
+                                  <p className="text-xs font-medium text-muted-foreground">
+                                    Расширенный анализ (Python / Qdrant)
+                                  </p>
+                                  {typeof result.mlPlagiarismPercent === "number" && (
+                                    <p>
+                                      <span className="text-muted-foreground">Совпадения по векторной базе:</span>{" "}
+                                      <span className="font-medium">{result.mlPlagiarismPercent}%</span>
+                                    </p>
+                                  )}
+                                  {typeof result.mlAiPercent === "number" && (
+                                    <p>
+                                      <span className="text-muted-foreground">Оценка признаков ИИ:</span>{" "}
+                                      <span className="font-medium">{result.mlAiPercent}%</span>
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             {result.message && <p className="text-sm text-muted-foreground">{result.message}</p>}
                           </div>

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { saveFileToDisk, addDocumentToDb } from "@/lib/local-storage"
+import { saveFileToDisk, addDocumentToDb, updateDocumentMlScores } from "@/lib/local-storage"
 import { createShingles, MinHash, normalizeContentForCheck } from "@/lib/plagiarism/algorithms"
+import { analyzeWithMlService } from "@/lib/analysis-client"
 import { logInfo, logError } from "@/lib/logger"
 
 const NUM_HASHES = 128
@@ -17,6 +18,8 @@ export async function POST(request: NextRequest) {
     const status = (formData.get("status") as "draft" | "final") || "draft"
     const userId = formData.get("userId") as string | null
     const institution = formData.get("institution") as string | null
+    const mlPlagRaw = formData.get("plagiarism_percent_ml") as string | null
+    const mlAiRaw = formData.get("ai_percent_ml") as string | null
 
     if (!file || !title || !content) {
       return NextResponse.json({ success: false, error: "Файл, название и содержимое обязательны" }, { status: 400 })
@@ -31,13 +34,24 @@ export async function POST(request: NextRequest) {
     // Нормализуем содержимое для целей проверки (убираем титульный лист, содержание, приложения)
     const normalizedContent = normalizeContentForCheck(content)
 
+    let plagiarismPercentMl: number | undefined
+    let aiPercentMl: number | undefined
+    if (mlPlagRaw != null && String(mlPlagRaw).trim() !== "" && mlAiRaw != null && String(mlAiRaw).trim() !== "") {
+      const p = Number(mlPlagRaw)
+      const a = Number(mlAiRaw)
+      if (!Number.isNaN(p) && !Number.isNaN(a)) {
+        plagiarismPercentMl = p
+        aiPercentMl = a
+      }
+    }
+
     // Создаем MinHash сигнатуру
     const shingles = createShingles(normalizedContent, 5)
     const minhash = new MinHash(NUM_HASHES)
     const signature = minhash.computeSignature(shingles)
 
     // Добавляем в базу данных этой категории
-    const doc = addDocumentToDb(
+    let doc = addDocumentToDb(
       title,
       normalizedContent,
       signature,
@@ -49,7 +63,24 @@ export async function POST(request: NextRequest) {
       status,
       userId || undefined,
       institution || undefined,
+      plagiarismPercentMl,
+      aiPercentMl,
     )
+
+    if (
+      (typeof plagiarismPercentMl !== "number" || typeof aiPercentMl !== "number") &&
+      normalizedContent.length >= 50
+    ) {
+      const ml = await analyzeWithMlService(normalizedContent, { filename: file.name, documentId: doc.id })
+      if (ml) {
+        updateDocumentMlScores(doc.id, ml.plagiarismPercent, ml.aiPercent)
+        doc = {
+          ...doc,
+          plagiarismPercentMl: ml.plagiarismPercent,
+          aiPercentMl: ml.aiPercent,
+        }
+      }
+    }
 
     logInfo("Документ загружен", userId || undefined, undefined, "upload", {
       documentId: doc.id,

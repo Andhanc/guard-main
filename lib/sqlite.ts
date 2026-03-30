@@ -40,6 +40,11 @@ export function getSqlite(): SqliteDb {
   return db
 }
 
+function tableHasColumn(db: SqliteDb, table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  return rows.some((r) => r.name === column)
+}
+
 export function migrate(db: SqliteDb) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -78,5 +83,12 @@ export function migrate(db: SqliteDb) {
     CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
     CREATE INDEX IF NOT EXISTS idx_documents_institution ON documents(institution);
   `)
+
+  if (!tableHasColumn(db, "documents", "plagiarism_percent_ml")) {
+    db.exec(`ALTER TABLE documents ADD COLUMN plagiarism_percent_ml REAL`)
+  }
+  if (!tableHasColumn(db, "documents", "ai_percent_ml")) {
+    db.exec(`ALTER TABLE documents ADD COLUMN ai_percent_ml REAL`)
+  }
 }
 

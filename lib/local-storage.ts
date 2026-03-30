@@ -28,6 +28,10 @@ export interface StoredDocument {
   minhashSignature: number[]
   shingleCount: number
   originalityPercent?: number
+  /** Векторный плагиат (Python / Qdrant), % */
+  plagiarismPercentMl?: number
+  /** Оценка AI-признаков (Python), % */
+  aiPercentMl?: number
 }
 
 const DATA_DIR = path.join(process.cwd(), "data")
@@ -74,6 +78,9 @@ function mapRowToStoredDocument(row: any): StoredDocument {
     minhashSignature: row.minhash_signature_json ? JSON.parse(row.minhash_signature_json) : [],
     shingleCount: row.shingle_count ?? 0,
     originalityPercent: typeof row.originality_percent === "number" ? row.originality_percent : undefined,
+    plagiarismPercentMl:
+      typeof row.plagiarism_percent_ml === "number" ? row.plagiarism_percent_ml : undefined,
+    aiPercentMl: typeof row.ai_percent_ml === "number" ? row.ai_percent_ml : undefined,
   }
 }
 
@@ -116,6 +123,8 @@ export function addDocumentToDb(
   status: DocumentStatus = "draft",
   userId?: string,
   institution?: string,
+  plagiarismPercentMl?: number,
+  aiPercentMl?: number,
 ): StoredDocument {
   const normCategory = category.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim() || "uncategorized"
   ensureCategoryDirs(normCategory)
@@ -128,9 +137,9 @@ export function addDocumentToDb(
     .prepare(
       `
       INSERT INTO documents
-        (title, author, filename, file_path, content, word_count, upload_date, category, status, user_id, institution, minhash_signature_json, shingle_count, originality_percent)
+        (title, author, filename, file_path, content, word_count, upload_date, category, status, user_id, institution, minhash_signature_json, shingle_count, originality_percent, plagiarism_percent_ml, ai_percent_ml)
       VALUES
-        (@title, @author, @filename, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, NULL)
+        (@title, @author, @filename, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, NULL, @plagiarism_percent_ml, @ai_percent_ml)
     `,
     )
     .run({
@@ -147,6 +156,9 @@ export function addDocumentToDb(
       institution: institution ?? null,
       minhash_signature_json: JSON.stringify(minhashSignature ?? []),
       shingle_count: shingleCount ?? 0,
+      plagiarism_percent_ml:
+        typeof plagiarismPercentMl === "number" ? plagiarismPercentMl : null,
+      ai_percent_ml: typeof aiPercentMl === "number" ? aiPercentMl : null,
     })
 
   const id = Number(info.lastInsertRowid)
@@ -165,6 +177,8 @@ export function addDocumentToDb(
     institution,
     minhashSignature,
     shingleCount,
+    plagiarismPercentMl: plagiarismPercentMl,
+    aiPercentMl: aiPercentMl,
   }
 }
 
@@ -321,6 +335,22 @@ export function updateDocumentOriginality(documentId: number, originalityPercent
   const db = initSqlite()
   const rounded = Math.round(originalityPercent * 100) / 100
   const info = db.prepare(`UPDATE documents SET originality_percent = ? WHERE id = ?`).run(rounded, documentId)
+  return info.changes > 0
+}
+
+export function updateDocumentMlScores(
+  documentId: number,
+  plagiarismPercentMl: number,
+  aiPercentMl: number,
+): boolean {
+  const db = initSqlite()
+  const p = Math.round(plagiarismPercentMl * 100) / 100
+  const a = Math.round(aiPercentMl * 100) / 100
+  const info = db
+    .prepare(
+      `UPDATE documents SET plagiarism_percent_ml = ?, ai_percent_ml = ? WHERE id = ?`,
+    )
+    .run(p, a, documentId)
   return info.changes > 0
 }
 

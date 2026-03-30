@@ -9,6 +9,10 @@ services:
       NODE_ENV: production
       PORT: 3000
       NEXT_TELEMETRY_DISABLED: "1"
+      # Связь с Python-анализом (docker-compose.ml.yml в каталоге antiplagiarism):
+      # подключите сеть antiplag к сервису app и раскомментируйте:
+      # ANALYSIS_SERVICE_URL: "http://analysis:8765"
+      # ANALYSIS_SERVICE_API_KEY: "если задан ANALYSIS_API_KEY в ML-сервисе"
       # LDAP переменные (можно переопределить через .env файл или docker-compose.override.yml)
       # LDAP_ENABLED: "false"
       # LDAP_URL: "ldaps://ldap.bsuir.by"
@@ -29,6 +33,7 @@ services:
       - ./data:/app/data
     networks:
       - plagiarismguard-network
+      # - antiplag  # внешняя сеть: docker network create antiplag + compose ML-стека
 
   nginx:
     image: nginx:alpine
@@ -49,6 +54,8 @@ services:
 networks:
   plagiarismguard-network:
     driver: bridge
+  # antiplag:
+  #   external: true
 
 
 

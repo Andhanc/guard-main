@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getAllDocumentsFromDb } from "@/lib/local-storage"
 import { createShingles, MinHash, compareMinHashSignatures, normalizeContentForCheck } from "@/lib/plagiarism/algorithms"
+import { analyzeWithMlService } from "@/lib/analysis-client"
 import { logInfo, logError } from "@/lib/logger"
 
 const NUM_HASHES = 128
@@ -9,7 +10,7 @@ const NUM_HASHES = 128
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { content, topK = 5, institution, category, userId } = body
+    const { content, topK = 5, institution, category, userId, filename: checkFilename } = body
 
     if (!content) {
       return NextResponse.json({ success: false, error: "Content is required" }, { status: 400 })
@@ -23,6 +24,10 @@ export async function POST(request: NextRequest) {
 
     // Убираем титульный лист, содержание и приложения перед расчётом оригинальности
     const normalizedContent = normalizeContentForCheck(content)
+
+    const mlPromise = analyzeWithMlService(normalizedContent, {
+      filename: typeof checkFilename === "string" ? checkFilename : undefined,
+    })
 
     // Создаем сигнатуру для проверяемого документа
     const shingles = createShingles(normalizedContent, 5)
@@ -94,11 +99,14 @@ export async function POST(request: NextRequest) {
 
     const processingTime = Date.now() - startTime
 
+    const ml = await mlPromise
+
     logInfo("Проверка документа завершена", body.userId, body.userRole, "check", {
       uniquenessPercent,
       totalDocumentsChecked: documents.length,
       similarDocumentsCount: topSimilar.length,
       processingTimeMs: processingTime,
+      mlAnalysisUsed: Boolean(ml),
     })
 
     return NextResponse.json({
@@ -107,6 +115,12 @@ export async function POST(request: NextRequest) {
       uniquenessPercent,
       totalDocumentsChecked: documents.length,
       similarDocuments: topSimilar,
+      ...(ml
+        ? {
+            mlPlagiarismPercent: ml.plagiarismPercent,
+            mlAiPercent: ml.aiPercent,
+          }
+        : {}),
     })
   } catch (error) {
     logError("Ошибка при проверке документа", error instanceof Error ? error : String(error), undefined, undefined, "check")
