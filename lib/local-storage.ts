@@ -1,12 +1,13 @@
 /**
  * Локальное файловое хранилище для системы антиплагиата.
- * У каждого типа документа (категории) своя папка и своя БД:
- * data/{category}/documents.json, data/{category}/uploads/
- * Глобальный индекс data/_index.json хранит nextId и idToCategory для поиска документа по id.
+ * Файлы uploads и PDF отчёты хранятся на диске как раньше,
+ * а метаданные/контент документов теперь лежат в SQLite.
  */
 
 import fs from "fs"
 import path from "path"
+import { getSqlite } from "./sqlite"
+import { ensureSqliteSeededFromLocalJson } from "./sqlite-seed"
 
 // Типы
 export type DocumentStatus = "draft" | "final"
@@ -29,18 +30,8 @@ export interface StoredDocument {
   originalityPercent?: number
 }
 
-interface CategoryDatabase {
-  documents: StoredDocument[]
-}
-
-interface GlobalIndex {
-  nextId: number
-  idToCategory: Record<string, string>
-}
-
 const DATA_DIR = path.join(process.cwd(), "data")
 const REPORTS_DIR = path.join(DATA_DIR, "reports")
-const INDEX_FILE = path.join(DATA_DIR, "_index.json")
 const DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 
 function safeCategoryDir(category: string): string {
@@ -60,56 +51,38 @@ function ensureCategoryDirs(category: string) {
   if (!fs.existsSync(uploads)) fs.mkdirSync(uploads, { recursive: true })
 }
 
-function readGlobalIndex(): GlobalIndex {
-  ensureDataDir()
-  if (!fs.existsSync(INDEX_FILE)) {
-    const initial: GlobalIndex = { nextId: 1, idToCategory: {} }
-    fs.writeFileSync(INDEX_FILE, JSON.stringify(initial, null, 2), "utf-8")
-    return initial
+function initSqlite() {
+  const db = getSqlite()
+  ensureSqliteSeededFromLocalJson()
+  return db
+}
+
+function mapRowToStoredDocument(row: any): StoredDocument {
+  return {
+    id: row.id,
+    title: row.title,
+    author: row.author ?? null,
+    filename: row.filename ?? null,
+    filePath: row.file_path ?? null,
+    content: row.content,
+    wordCount: row.word_count,
+    uploadDate: row.upload_date,
+    category: row.category,
+    status: row.status,
+    userId: row.user_id ?? undefined,
+    institution: row.institution ?? undefined,
+    minhashSignature: row.minhash_signature_json ? JSON.parse(row.minhash_signature_json) : [],
+    shingleCount: row.shingle_count ?? 0,
+    originalityPercent: typeof row.originality_percent === "number" ? row.originality_percent : undefined,
   }
-  const data = fs.readFileSync(INDEX_FILE, "utf-8")
-  return JSON.parse(data)
-}
-
-function writeGlobalIndex(index: GlobalIndex) {
-  ensureDataDir()
-  fs.writeFileSync(INDEX_FILE, JSON.stringify(index, null, 2), "utf-8")
-}
-
-function getCategoryDbPath(category: string): string {
-  return path.join(safeCategoryDir(category), "documents.json")
-}
-
-function readCategoryDatabase(category: string): CategoryDatabase {
-  ensureCategoryDirs(category)
-  const dbPath = getCategoryDbPath(category)
-  if (!fs.existsSync(dbPath)) {
-    const initial: CategoryDatabase = { documents: [] }
-    fs.writeFileSync(dbPath, JSON.stringify(initial, null, 2), "utf-8")
-    return initial
-  }
-  const data = fs.readFileSync(dbPath, "utf-8")
-  return JSON.parse(data)
-}
-
-function writeCategoryDatabase(category: string, db: CategoryDatabase) {
-  ensureCategoryDirs(category)
-  fs.writeFileSync(getCategoryDbPath(category), JSON.stringify(db, null, 2), "utf-8")
 }
 
 /** Список категорий, для которых есть папка в data/ */
 export function getStorageCategories(): string[] {
-  ensureDataDir()
-  const names = fs.readdirSync(DATA_DIR, { withFileTypes: true })
-  const categories: string[] = []
-  for (const e of names) {
-    if (!e.isDirectory()) continue
-    const name = e.name
-    if (name.startsWith("_") || name === "reports" || name === "uploads") continue
-    const dbPath = path.join(DATA_DIR, name, "documents.json")
-    if (fs.existsSync(dbPath)) categories.push(name)
-  }
-  return categories.length > 0 ? categories : ["uncategorized"]
+  const db = initSqlite()
+  const rows = db.prepare(`SELECT DISTINCT category FROM documents ORDER BY category`).all() as Array<{ category: string }>
+  const cats = rows.map((r) => r.category).filter(Boolean)
+  return cats.length > 0 ? cats : ["uncategorized"]
 }
 
 // Сохранение файла в папку категории
@@ -130,7 +103,7 @@ export function saveFileToDisk(
   return newFilename
 }
 
-// Добавление документа в базу категории (глобальный id из _index)
+// Добавление документа в базу (SQLite). ID — автоинкремент SQLite.
 export function addDocumentToDb(
   title: string,
   content: string,
@@ -145,25 +118,47 @@ export function addDocumentToDb(
   institution?: string,
 ): StoredDocument {
   const normCategory = category.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim() || "uncategorized"
-  const index = readGlobalIndex()
-  const id = index.nextId++
-  index.idToCategory[String(id)] = normCategory
-  writeGlobalIndex(index)
+  ensureCategoryDirs(normCategory)
+  const db = initSqlite()
+  const relativeFilePath = savedFilename ? `data/${normCategory}/uploads/${savedFilename}` : null
+  const wordCount = content.split(/\s+/).filter((w) => w.length > 0).length
+  const uploadDate = new Date().toISOString()
 
-  const db = readCategoryDatabase(normCategory)
-  const relativeFilePath = savedFilename
-    ? `data/${normCategory}/uploads/${savedFilename}`
-    : null
+  const info = db
+    .prepare(
+      `
+      INSERT INTO documents
+        (title, author, filename, file_path, content, word_count, upload_date, category, status, user_id, institution, minhash_signature_json, shingle_count, originality_percent)
+      VALUES
+        (@title, @author, @filename, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, NULL)
+    `,
+    )
+    .run({
+      title,
+      author: author || null,
+      filename: filename || null,
+      file_path: relativeFilePath,
+      content,
+      word_count: wordCount,
+      upload_date: uploadDate,
+      category: normCategory,
+      status,
+      user_id: userId ?? null,
+      institution: institution ?? null,
+      minhash_signature_json: JSON.stringify(minhashSignature ?? []),
+      shingle_count: shingleCount ?? 0,
+    })
 
-  const doc: StoredDocument = {
+  const id = Number(info.lastInsertRowid)
+  return {
     id,
     title,
     author: author || null,
     filename: filename || null,
     filePath: relativeFilePath,
     content,
-    wordCount: content.split(/\s+/).filter((w) => w.length > 0).length,
-    uploadDate: new Date().toISOString(),
+    wordCount,
+    uploadDate,
     category: normCategory,
     status,
     userId,
@@ -171,10 +166,6 @@ export function addDocumentToDb(
     minhashSignature,
     shingleCount,
   }
-
-  db.documents.push(doc)
-  writeCategoryDatabase(normCategory, db)
-  return doc
 }
 
 function filterDraftTtlAndCleanup(documents: StoredDocument[], category: string): StoredDocument[] {
@@ -198,9 +189,12 @@ function filterDraftTtlAndCleanup(documents: StoredDocument[], category: string)
     return true
   })
   if (kept.length !== documents.length) {
-    const db = readCategoryDatabase(category)
-    db.documents = kept
-    writeCategoryDatabase(category, db)
+    // Persist deletions in SQLite
+    const sqlite = initSqlite()
+    const idsToKeep = new Set(kept.map((d) => d.id))
+    const toDelete = documents.filter((d) => d.status === "draft" && !idsToKeep.has(d.id))
+    const del = sqlite.prepare(`DELETE FROM documents WHERE id = ?`)
+    for (const d of toDelete) del.run(d.id)
   }
   return kept
 }
@@ -214,112 +208,126 @@ export function getAllDocumentsFromDb(
   institution?: string,
   categories?: string[],
 ): StoredDocument[] {
-  const list = categories ?? getStorageCategories()
-  const all: StoredDocument[] = []
+  const db = initSqlite()
 
-  for (const cat of list) {
-    const db = readCategoryDatabase(cat)
-    const afterDraft = filterDraftTtlAndCleanup(db.documents, cat)
-    all.push(...afterDraft)
+  const where: string[] = []
+  const params: any[] = []
+
+  if (categories && categories.length > 0) {
+    where.push(`category IN (${categories.map(() => "?").join(",")})`)
+    params.push(...categories)
+  }
+  if (excludeUserId) {
+    where.push(`(user_id IS NULL OR user_id <> ?)`)
+    params.push(excludeUserId)
+  }
+  if (institution) {
+    where.push(`institution = ?`)
+    params.push(institution)
   }
 
-  let filtered = all
-  if (excludeUserId) filtered = filtered.filter((doc) => doc.userId !== excludeUserId)
-  if (institution) filtered = filtered.filter((doc) => doc.institution === institution)
+  const sql = `
+    SELECT *
+    FROM documents
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    ORDER BY upload_date DESC
+  `
 
-  return filtered.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime())
+  const rows = db.prepare(sql).all(...params)
+  const docs = rows.map(mapRowToStoredDocument)
+
+  // TTL cleanup for drafts
+  const catsForCleanup = categories?.length ? categories : getStorageCategories()
+  const byCat = new Map<string, StoredDocument[]>()
+  for (const d of docs) {
+    if (!byCat.has(d.category)) byCat.set(d.category, [])
+    byCat.get(d.category)!.push(d)
+  }
+  const out: StoredDocument[] = []
+  for (const cat of catsForCleanup) {
+    const list = byCat.get(cat) ?? []
+    out.push(...filterDraftTtlAndCleanup(list, cat))
+  }
+  return out.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime())
 }
 
 export function getUserFinalDocuments(userId: string): StoredDocument[] {
-  const list = getStorageCategories()
-  const all: StoredDocument[] = []
-  for (const cat of list) {
-    const db = readCategoryDatabase(cat)
-    all.push(...db.documents.filter((doc) => doc.userId === userId && doc.status === "final"))
-  }
-  return all.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime())
+  const db = initSqlite()
+  const rows = db
+    .prepare(
+      `
+      SELECT * FROM documents
+      WHERE user_id = ? AND status = 'final'
+      ORDER BY upload_date DESC
+    `,
+    )
+    .all(userId)
+  return rows.map(mapRowToStoredDocument)
 }
 
 export function getUserDocuments(userId: string): StoredDocument[] {
-  const list = getStorageCategories()
+  const db = initSqlite()
+  const rows = db
+    .prepare(
+      `
+      SELECT * FROM documents
+      WHERE user_id = ?
+      ORDER BY upload_date DESC
+    `,
+    )
+    .all(userId)
+  const docs = rows.map(mapRowToStoredDocument)
   const now = Date.now()
-  const all: StoredDocument[] = []
-  for (const cat of list) {
-    const db = readCategoryDatabase(cat)
-    for (const doc of db.documents) {
-      if (doc.userId !== userId) continue
-      if (doc.status === "final") {
-        all.push(doc)
-        continue
-      }
-      if (doc.status === "draft") {
-        const uploadTime = new Date(doc.uploadDate).getTime()
-        if (now - uploadTime < DRAFT_TTL_MS) all.push(doc)
-      }
-    }
+  const filtered = docs.filter((d) => d.status === "final" || now - new Date(d.uploadDate).getTime() < DRAFT_TTL_MS)
+  // cleanup for expired drafts (and delete their files)
+  const byCat = new Map<string, StoredDocument[]>()
+  for (const d of filtered) {
+    if (!byCat.has(d.category)) byCat.set(d.category, [])
+    byCat.get(d.category)!.push(d)
   }
-  return all.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime())
+  const out: StoredDocument[] = []
+  for (const [cat, list] of byCat.entries()) {
+    out.push(...filterDraftTtlAndCleanup(list, cat))
+  }
+  return out.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime())
 }
 
 export function getDocumentByIdFromDb(id: number): StoredDocument | null {
-  const index = readGlobalIndex()
-  const category = index.idToCategory[String(id)]
-  if (!category) return null
-  const db = readCategoryDatabase(category)
-  return db.documents.find((doc) => doc.id === id) || null
+  const db = initSqlite()
+  const row = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(id)
+  return row ? mapRowToStoredDocument(row) : null
 }
 
 export function deleteDocumentFromDb(id: number): boolean {
-  const index = readGlobalIndex()
-  const category = index.idToCategory[String(id)]
-  if (!category) return false
+  const doc = getDocumentByIdFromDb(id)
+  if (!doc) return false
 
-  const db = readCategoryDatabase(category)
-  const idx = db.documents.findIndex((doc) => doc.id === id)
-  if (idx === -1) return false
-
-  const doc = db.documents[idx]
   if (doc.filePath) {
     const fullPath = path.join(process.cwd(), doc.filePath)
     if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath)
   }
-
-  db.documents.splice(idx, 1)
-  writeCategoryDatabase(category, db)
-  delete index.idToCategory[String(id)]
-  writeGlobalIndex(index)
-  return true
+  const db = initSqlite()
+  const info = db.prepare(`DELETE FROM documents WHERE id = ?`).run(id)
+  return info.changes > 0
 }
 
 export function getDocumentCountFromDb(): number {
-  const list = getStorageCategories()
-  let count = 0
-  for (const cat of list) {
-    count += readCategoryDatabase(cat).documents.length
-  }
-  return count
+  const db = initSqlite()
+  const row = db.prepare(`SELECT COUNT(1) AS c FROM documents`).get() as { c: number }
+  return row?.c ?? 0
 }
 
 export function updateDocumentOriginality(documentId: number, originalityPercent: number): boolean {
-  const doc = getDocumentByIdFromDb(documentId)
-  if (!doc) return false
-  const db = readCategoryDatabase(doc.category)
-  const d = db.documents.find((x) => x.id === documentId)
-  if (!d) return false
-  d.originalityPercent = Math.round(originalityPercent * 100) / 100
-  writeCategoryDatabase(doc.category, db)
-  return true
+  const db = initSqlite()
+  const rounded = Math.round(originalityPercent * 100) / 100
+  const info = db.prepare(`UPDATE documents SET originality_percent = ? WHERE id = ?`).run(rounded, documentId)
+  return info.changes > 0
 }
 
 export function updateDocumentStatus(documentId: number, status: DocumentStatus): boolean {
-  const doc = getDocumentByIdFromDb(documentId)
-  if (!doc) return false
-  const db = readCategoryDatabase(doc.category)
-  const d = db.documents.find((x) => x.id === documentId)
-  if (!d) return false
-  d.status = status
-  writeCategoryDatabase(doc.category, db)
-  return true
+  const db = initSqlite()
+  const info = db.prepare(`UPDATE documents SET status = ? WHERE id = ?`).run(status, documentId)
+  return info.changes > 0
 }
 
 // ——— Отчёты (PDF) ———

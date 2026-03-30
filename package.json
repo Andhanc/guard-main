@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "db:init": "tsx scripts/init-sqlite.ts",
     "dev": "next dev",
     "lint": "eslint .",
     "start": "next start"
@@ -79,6 +80,7 @@
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
+    "tsx": "^4.20.5",
     "typescript": "^5"
   }
 }
