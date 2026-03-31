@@ -46,6 +46,7 @@ interface SimilarDocument {
 }
 
 interface CheckResult {
+  plagiarismPercent?: number
   uniquenessPercent: number
   totalDocumentsChecked: number
   similarDocuments: SimilarDocument[]
@@ -63,7 +64,7 @@ export default function CheckPage() {
   const [originalFile, setOriginalFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isChecking, setIsChecking] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<CheckResult | (any)>(null)
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<CheckHistoryItem[]>([])
   const [isSavingAsFinal, setIsSavingAsFinal] = useState(false)
@@ -443,7 +444,7 @@ export default function CheckPage() {
                                 typeof result.mlAiPercent === "number") && (
                                 <div className="sm:col-span-2 rounded-md border bg-muted/40 px-3 py-2 space-y-1">
                                   <p className="text-xs font-medium text-muted-foreground">
-                                    Расширенный анализ (Python / Qdrant)
+                                    Детали анализа
                                   </p>
                                   {typeof result.mlPlagiarismPercent === "number" && (
                                     <p>

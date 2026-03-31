@@ -1,16 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getAllDocumentsFromDb } from "@/lib/local-storage"
-import { createShingles, MinHash, compareMinHashSignatures, normalizeContentForCheck } from "@/lib/plagiarism/algorithms"
+import { normalizeContentForCheck } from "@/lib/plagiarism/algorithms"
 import { analyzeWithMlService } from "@/lib/analysis-client"
 import { logInfo, logError } from "@/lib/logger"
 
-const NUM_HASHES = 128
+function clampPercent(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(100, n))
+}
+
+function roundPercent(n: number): number {
+  return Math.round(clampPercent(n) * 100) / 100
+}
 
 // POST - Проверка документа на плагиат
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { content, topK = 5, institution, category, userId, filename: checkFilename } = body
+    const { content, filename: checkFilename } = body
 
     if (!content) {
       return NextResponse.json({ success: false, error: "Content is required" }, { status: 400 })
@@ -25,86 +31,28 @@ export async function POST(request: NextRequest) {
     // Убираем титульный лист, содержание и приложения перед расчётом оригинальности
     const normalizedContent = normalizeContentForCheck(content)
 
-    const mlPromise = analyzeWithMlService(normalizedContent, {
+    const ml = await analyzeWithMlService(normalizedContent, {
       filename: typeof checkFilename === "string" ? checkFilename : undefined,
     })
 
-    // Создаем сигнатуру для проверяемого документа
-    const shingles = createShingles(normalizedContent, 5)
-    const minhash = new MinHash(NUM_HASHES)
-    const signature = minhash.computeSignature(shingles)
-
-    // Выбираем, по каким базам сравнивать: у каждого типа документа своя БД (папка).
-    // Курсовая и дипломная сравниваются по двум базам: coursework + diploma.
-    const normCategory = (category || "").replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim() || "uncategorized"
-    let categoriesToCompare: string[]
-    if (normCategory === "coursework" || normCategory === "diploma") {
-      categoriesToCompare = ["coursework", "diploma"]
-    } else if (normCategory && normCategory !== "all") {
-      categoriesToCompare = [normCategory]
-    } else {
-      categoriesToCompare = [] // все категории — передаём undefined ниже
-    }
-
-    const documents = categoriesToCompare.length > 0
-      ? getAllDocumentsFromDb(userId, institution, categoriesToCompare)
-      : getAllDocumentsFromDb(userId, institution)
-
-    if (documents.length === 0) {
-      return NextResponse.json({
-        success: true,
-        processingTimeMs: Date.now() - startTime,
-        uniquenessPercent: 100,
-        totalDocumentsChecked: 0,
-        similarDocuments: [],
-        message: "База документов пуста",
-      })
-    }
-
-    // Сравниваем с каждым документом в базе
-    const similarities: Array<{
-      id: number
-      title: string
-      author: string | null
-      userId: string | null
-      filename: string | null
-      filePath: string | null
-      similarity: number
-      category: string
-    }> = []
-
-    for (const doc of documents) {
-      // Используем сохраненную MinHash сигнатуру
-      const similarity = compareMinHashSignatures(signature, doc.minhashSignature)
-
-      similarities.push({
-        id: doc.id,
-        title: doc.title,
-        author: doc.author,
-        userId: doc.userId || null,
-        filename: doc.filename,
-        filePath: doc.filePath,
-        similarity: Math.round(similarity * 100),
-        category: doc.category,
-      })
-    }
-
-    // Сортируем по убыванию схожести и берем топ-K
-    similarities.sort((a, b) => b.similarity - a.similarity)
-    const topSimilar = similarities.slice(0, topK)
-
-    // Вычисляем процент уникальности
-    const maxSimilarity = topSimilar.length > 0 ? topSimilar[0].similarity : 0
-    const uniquenessPercent = 100 - maxSimilarity
-
     const processingTime = Date.now() - startTime
 
-    const ml = await mlPromise
+    if (!ml) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "ML analysis service is unavailable. Set ANALYSIS_SERVICE_URL and ensure antiplagiarism is running.",
+        },
+        { status: 503 },
+      )
+    }
+
+    const plagiarismPercent = roundPercent(clampPercent(ml.plagiarismPercent))
+    const uniquenessPercent = roundPercent(100 - plagiarismPercent)
 
     logInfo("Проверка документа завершена", body.userId, body.userRole, "check", {
       uniquenessPercent,
-      totalDocumentsChecked: documents.length,
-      similarDocumentsCount: topSimilar.length,
+      plagiarismPercent,
       processingTimeMs: processingTime,
       mlAnalysisUsed: Boolean(ml),
     })
@@ -112,15 +60,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       processingTimeMs: processingTime,
+      plagiarismPercent,
       uniquenessPercent,
-      totalDocumentsChecked: documents.length,
-      similarDocuments: topSimilar,
-      ...(ml
-        ? {
-            mlPlagiarismPercent: ml.plagiarismPercent,
-            mlAiPercent: ml.aiPercent,
-          }
-        : {}),
+      totalDocumentsChecked: 0,
+      similarDocuments: [],
+      mlPlagiarismPercent: roundPercent(ml.plagiarismPercent),
+      mlAiPercent: roundPercent(ml.aiPercent),
     })
   } catch (error) {
     logError("Ошибка при проверке документа", error instanceof Error ? error : String(error), undefined, undefined, "check")
