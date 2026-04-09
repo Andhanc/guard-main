@@ -339,7 +339,6 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
   const matchesPercent = Math.round((100 - result.uniquenessPercent) * 100) / 100
   const origPercent = Math.round(result.uniquenessPercent * 100) / 100
   const aiPercent = Math.round((result.aiPercentMl ?? 0) * 100) / 100
-  const vectorPlagiarismPercent = Math.round((result.plagiarismPercentMl ?? matchesPercent) * 100) / 100
 
   // Небольшой отступ сверху перед блоком результатов (подвинули ближе к верхней линии)
   
@@ -410,21 +409,6 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
 
   // Нижняя граница блока результатов
   y = rowY + 4
-  doc.setDrawColor(230, 235, 246)
-  doc.setLineWidth(0.4)
-  doc.line(margin, y, pageWidth - margin, y)
-  y += 7
-
-  // Блок "Детали анализа"
-  doc.setFontSize(8)
-  doc.setFont(FONT, "normal")
-  doc.setTextColor(...grayText)
-  doc.text("Детали анализа:", metricsStartX, y)
-  y += 5
-  doc.text(`Совпадения по векторной базе: ${formatPercent(vectorPlagiarismPercent)}%`, metricsStartX, y)
-  y += 4.5
-  doc.text(`Оценка признаков ИИ: ${formatPercent(aiPercent)}%`, metricsStartX, y)
-  y += 4.5
   doc.setDrawColor(230, 235, 246)
   doc.setLineWidth(0.4)
   doc.line(margin, y, pageWidth - margin, y)

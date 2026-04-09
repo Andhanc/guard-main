@@ -107,14 +107,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const plagiarismPercent = roundPercent(clampPercent(ml.plagiarismPercent))
-    const uniquenessPercent = roundPercent(100 - plagiarismPercent)
+    const localPlagiarismPercent = roundPercent(
+      similarDocuments.length > 0 ? similarDocuments[0].similarity : 0,
+    )
+    const plagiarismPercent = localPlagiarismPercent
+    const uniquenessPercent = roundPercent(100 - localPlagiarismPercent)
 
     logInfo("Проверка документа завершена", body.userId, body.userRole, "check", {
       uniquenessPercent,
       plagiarismPercent,
       processingTimeMs: processingTime,
       mlAnalysisUsed: Boolean(ml),
+      localCandidatesChecked: comparisonPool.length,
     })
 
     return NextResponse.json({
