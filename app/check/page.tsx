@@ -106,6 +106,7 @@ export default function CheckPage() {
   }
 
   const handleFileProcessed = (file: ParsedFile, originalFile: File) => {
+    const currentUser = getSession()
     setParsedFile(file)
     setOriginalFile(originalFile)
     setUploadError(null)
@@ -113,7 +114,7 @@ export default function CheckPage() {
     setError(null)
     setMetadata({
       title: file.filename.replace(/\.(pdf|docx|doc)$/i, ""),
-      author: "",
+      author: currentUser?.fullName || currentUser?.username || "",
       checker: "",
       category: "coursework",
       // По умолчанию версия документа всегда черновая
@@ -160,6 +161,8 @@ export default function CheckPage() {
           uploadFormData.append("userId", user?.username || "")
           uploadFormData.append("institution", user?.institution || "БГУИР")
           uploadFormData.append("content", parsedFile.text)
+          uploadFormData.append("processing_time_ms", String(data.processingTimeMs ?? 0))
+          uploadFormData.append("document_type", parsedFile.fileType === "pdf" ? "pdf" : "word")
 
           if (typeof data.mlPlagiarismPercent === "number" && typeof data.mlAiPercent === "number") {
             uploadFormData.append("plagiarism_percent_ml", String(data.mlPlagiarismPercent))
@@ -764,8 +767,8 @@ export default function CheckPage() {
               <Input
                 id="author"
                 value={metadata.author}
-                onChange={(e) => setMetadata({ ...metadata, author: e.target.value })}
-                placeholder="Иванов Иван Иванович"
+                readOnly
+                disabled
               />
             </div>
 

@@ -188,6 +188,12 @@ export default function ProfilePage() {
     superadmin: "Главный администратор",
   }
 
+  const fullNameParts =
+    typeof user.fullName === "string" ? user.fullName.trim().split(/\s+/).filter(Boolean) : []
+  const displayFullName =
+    user.fullName ||
+    [fullNameParts[0], fullNameParts[1], user.middleName || fullNameParts[2]].filter(Boolean).join(" ")
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -254,7 +260,7 @@ export default function ProfilePage() {
                     <User className="h-4 w-4" />
                     ФИО
                   </p>
-                  <p className="font-medium">{user.fullName || "Не указано"}</p>
+                  <p className="font-medium">{displayFullName || "Не указано"}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground flex items-center gap-2">

@@ -14,6 +14,7 @@ CREATE TABLE documents (
       title TEXT NOT NULL,
       author TEXT,
       filename TEXT,
+      document_type TEXT,
       file_path TEXT,
       content TEXT NOT NULL,
       word_count INTEGER NOT NULL,
@@ -24,7 +25,8 @@ CREATE TABLE documents (
       institution TEXT,
       minhash_signature_json TEXT NOT NULL,
       shingle_count INTEGER NOT NULL,
-      originality_percent REAL
+      originality_percent REAL,
+      processing_time_ms INTEGER
     , plagiarism_percent_ml REAL, ai_percent_ml REAL);
 CREATE INDEX idx_documents_upload_date ON documents(upload_date);
 CREATE INDEX idx_documents_category ON documents(category);

@@ -17,6 +17,7 @@ export interface StoredDocument {
   title: string
   author: string | null
   filename: string | null
+  documentType?: "word" | "pdf"
   filePath: string | null
   content: string
   wordCount: number
@@ -32,6 +33,7 @@ export interface StoredDocument {
   plagiarismPercentMl?: number
   /** Оценка AI-признаков (Python), % */
   aiPercentMl?: number
+  processingTimeMs?: number
 }
 
 const DATA_DIR = path.join(process.cwd(), "data")
@@ -62,11 +64,13 @@ function initSqlite() {
 }
 
 function mapRowToStoredDocument(row: any): StoredDocument {
+  const docType = row.document_type === "pdf" || row.document_type === "word" ? row.document_type : undefined
   return {
     id: row.id,
     title: row.title,
     author: row.author ?? null,
     filename: row.filename ?? null,
+    documentType: docType,
     filePath: row.file_path ?? null,
     content: row.content,
     wordCount: row.word_count,
@@ -81,6 +85,7 @@ function mapRowToStoredDocument(row: any): StoredDocument {
     plagiarismPercentMl:
       typeof row.plagiarism_percent_ml === "number" ? row.plagiarism_percent_ml : undefined,
     aiPercentMl: typeof row.ai_percent_ml === "number" ? row.ai_percent_ml : undefined,
+    processingTimeMs: typeof row.processing_time_ms === "number" ? row.processing_time_ms : undefined,
   }
 }
 
@@ -125,6 +130,8 @@ export function addDocumentToDb(
   institution?: string,
   plagiarismPercentMl?: number,
   aiPercentMl?: number,
+  processingTimeMs?: number,
+  documentType?: "word" | "pdf",
 ): StoredDocument {
   const normCategory = category.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim() || "uncategorized"
   ensureCategoryDirs(normCategory)
@@ -137,15 +144,16 @@ export function addDocumentToDb(
     .prepare(
       `
       INSERT INTO documents
-        (title, author, filename, file_path, content, word_count, upload_date, category, status, user_id, institution, minhash_signature_json, shingle_count, originality_percent, plagiarism_percent_ml, ai_percent_ml)
+        (title, author, filename, document_type, file_path, content, word_count, upload_date, category, status, user_id, institution, minhash_signature_json, shingle_count, originality_percent, plagiarism_percent_ml, ai_percent_ml, processing_time_ms)
       VALUES
-        (@title, @author, @filename, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, NULL, @plagiarism_percent_ml, @ai_percent_ml)
+        (@title, @author, @filename, @document_type, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, NULL, @plagiarism_percent_ml, @ai_percent_ml, @processing_time_ms)
     `,
     )
     .run({
       title,
       author: author || null,
       filename: filename || null,
+      document_type: documentType ?? null,
       file_path: relativeFilePath,
       content,
       word_count: wordCount,
@@ -159,6 +167,7 @@ export function addDocumentToDb(
       plagiarism_percent_ml:
         typeof plagiarismPercentMl === "number" ? plagiarismPercentMl : null,
       ai_percent_ml: typeof aiPercentMl === "number" ? aiPercentMl : null,
+      processing_time_ms: typeof processingTimeMs === "number" ? Math.max(0, Math.round(processingTimeMs)) : null,
     })
 
   const id = Number(info.lastInsertRowid)
@@ -167,6 +176,7 @@ export function addDocumentToDb(
     title,
     author: author || null,
     filename: filename || null,
+    documentType: documentType,
     filePath: relativeFilePath,
     content,
     wordCount,
@@ -179,6 +189,7 @@ export function addDocumentToDb(
     shingleCount,
     plagiarismPercentMl: plagiarismPercentMl,
     aiPercentMl: aiPercentMl,
+    processingTimeMs: processingTimeMs,
   }
 }
 

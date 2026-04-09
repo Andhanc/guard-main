@@ -21,6 +21,8 @@ export async function GET() {
       userId: doc.userId,
       institution: doc.institution,
       originalityPercent: doc.originalityPercent,
+      documentType: doc.documentType,
+      processingTimeMs: doc.processingTimeMs,
     }))
 
     return NextResponse.json({

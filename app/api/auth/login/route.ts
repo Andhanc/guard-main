@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
               additionalRoles: [],
               email: ldapUser.email,
               fullName: ldapUser.fullName,
+              middleName: ldapUser.middleName,
               institution: ldapUser.institution,
             },
           })
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
           additionalRoles: storedUser.additionalRoles ?? [],
           email: storedUser.email,
           fullName: storedUser.fullName,
+          middleName: undefined,
           institution: storedUser.institution,
         },
       })
@@ -110,6 +112,7 @@ export async function POST(request: NextRequest) {
           additionalRoles: [],
           email: testUser.email,
           fullName: testUser.fullName,
+          middleName: undefined,
         },
       })
     }

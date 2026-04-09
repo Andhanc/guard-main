@@ -7,6 +7,7 @@ export interface User {
   additionalRoles?: UserRole[]
   email?: string
   fullName?: string
+  middleName?: string
   institution?: string
 }
 

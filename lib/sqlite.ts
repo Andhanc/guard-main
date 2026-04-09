@@ -64,6 +64,7 @@ export function migrate(db: SqliteDb) {
       title TEXT NOT NULL,
       author TEXT,
       filename TEXT,
+      document_type TEXT,
       file_path TEXT,
       content TEXT NOT NULL,
       word_count INTEGER NOT NULL,
@@ -74,7 +75,8 @@ export function migrate(db: SqliteDb) {
       institution TEXT,
       minhash_signature_json TEXT NOT NULL,
       shingle_count INTEGER NOT NULL,
-      originality_percent REAL
+      originality_percent REAL,
+      processing_time_ms INTEGER
     );
 
     CREATE INDEX IF NOT EXISTS idx_documents_upload_date ON documents(upload_date);
@@ -109,6 +111,12 @@ export function migrate(db: SqliteDb) {
   }
   if (!tableHasColumn(db, "documents", "ai_percent_ml")) {
     db.exec(`ALTER TABLE documents ADD COLUMN ai_percent_ml REAL`)
+  }
+  if (!tableHasColumn(db, "documents", "document_type")) {
+    db.exec(`ALTER TABLE documents ADD COLUMN document_type TEXT`)
+  }
+  if (!tableHasColumn(db, "documents", "processing_time_ms")) {
+    db.exec(`ALTER TABLE documents ADD COLUMN processing_time_ms INTEGER`)
   }
 
   if (!tableHasColumn(db, "jobs", "run_after_ms")) {

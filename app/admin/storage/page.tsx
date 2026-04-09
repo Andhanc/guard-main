@@ -53,15 +53,27 @@ interface DocumentData {
   title: string
   author: string | null
   filename: string | null
+  documentType?: "word" | "pdf"
   category: string
   uploadDate: string
   status: "draft" | "final"
   userId?: string
   institution?: string
   originalityPercent?: number
+  processingTimeMs?: number
 }
 
-type SortKey = "id" | "title" | "author" | "userId" | "category" | "uploadDate" | "status" | "originalityPercent"
+type SortKey =
+  | "id"
+  | "title"
+  | "author"
+  | "userId"
+  | "category"
+  | "documentType"
+  | "uploadDate"
+  | "status"
+  | "originalityPercent"
+  | "processingTimeMs"
 type SortOrder = "asc" | "desc"
 
 export default function StorageManagementPage() {
@@ -176,6 +188,7 @@ export default function StorageManagementPage() {
       formData.append("userId", user?.username || "")
       formData.append("institution", user?.institution || "БГУИР")
       formData.append("content", parsedFile.text)
+      formData.append("document_type", parsedFile.fileType === "pdf" ? "pdf" : "word")
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -232,12 +245,21 @@ export default function StorageManagementPage() {
         case "uploadDate":
           cmp = new Date(a.uploadDate).getTime() - new Date(b.uploadDate).getTime()
           break
+        case "documentType":
+          cmp = (a.documentType || "").localeCompare(b.documentType || "")
+          break
         case "status":
           cmp = (a.status || "").localeCompare(b.status || "")
           break
         case "originalityPercent": {
           const va = a.originalityPercent ?? -1
           const vb = b.originalityPercent ?? -1
+          cmp = va - vb
+          break
+        }
+        case "processingTimeMs": {
+          const va = a.processingTimeMs ?? -1
+          const vb = b.processingTimeMs ?? -1
           cmp = va - vb
           break
         }
@@ -385,8 +407,10 @@ export default function StorageManagementPage() {
                       <SortHeader columnKey="author">Автор</SortHeader>
                       <SortHeader columnKey="userId">Логин</SortHeader>
                       <SortHeader columnKey="category">Тип работы</SortHeader>
+                      <SortHeader columnKey="documentType">Тип документа</SortHeader>
                       <SortHeader columnKey="uploadDate">Дата загрузки</SortHeader>
                       <SortHeader columnKey="originalityPercent">Оригинальность %</SortHeader>
+                      <SortHeader columnKey="processingTimeMs">Время обработки</SortHeader>
                       <SortHeader columnKey="status">Статус</SortHeader>
                       <TableHead>Действия</TableHead>
                     </TableRow>
@@ -401,6 +425,7 @@ export default function StorageManagementPage() {
                         <TableCell>
                           <Badge variant="outline">{categoryLabels[doc.category] || doc.category}</Badge>
                         </TableCell>
+                        <TableCell>{doc.documentType === "pdf" ? "PDF" : doc.documentType === "word" ? "Word" : "—"}</TableCell>
                         <TableCell>
                           {doc.uploadDate
                             ? new Date(doc.uploadDate).toLocaleString("ru-RU", {
@@ -417,6 +442,13 @@ export default function StorageManagementPage() {
                             <span className="font-medium tabular-nums">
                               {doc.originalityPercent.toFixed(1)}%
                             </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {typeof doc.processingTimeMs === "number" ? (
+                            <span className="font-medium tabular-nums">{doc.processingTimeMs} мс</span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}

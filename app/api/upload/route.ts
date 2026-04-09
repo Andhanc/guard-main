@@ -20,6 +20,8 @@ export async function POST(request: NextRequest) {
     const institution = formData.get("institution") as string | null
     const mlPlagRaw = formData.get("plagiarism_percent_ml") as string | null
     const mlAiRaw = formData.get("ai_percent_ml") as string | null
+    const processingTimeMsRaw = formData.get("processing_time_ms") as string | null
+    const documentTypeRaw = formData.get("document_type") as string | null
 
     if (!file || !title || !content) {
       return NextResponse.json({ success: false, error: "Файл, название и содержимое обязательны" }, { status: 400 })
@@ -36,6 +38,8 @@ export async function POST(request: NextRequest) {
 
     let plagiarismPercentMl: number | undefined
     let aiPercentMl: number | undefined
+    let processingTimeMs: number | undefined
+    let documentType: "word" | "pdf" | undefined
     if (mlPlagRaw != null && String(mlPlagRaw).trim() !== "" && mlAiRaw != null && String(mlAiRaw).trim() !== "") {
       const p = Number(mlPlagRaw)
       const a = Number(mlAiRaw)
@@ -43,6 +47,18 @@ export async function POST(request: NextRequest) {
         plagiarismPercentMl = p
         aiPercentMl = a
       }
+    }
+    if (processingTimeMsRaw != null && String(processingTimeMsRaw).trim() !== "") {
+      const t = Number(processingTimeMsRaw)
+      if (!Number.isNaN(t) && Number.isFinite(t) && t >= 0) {
+        processingTimeMs = Math.round(t)
+      }
+    }
+    if (documentTypeRaw === "pdf" || documentTypeRaw === "word") {
+      documentType = documentTypeRaw
+    } else {
+      const ext = file.name.split(".").pop()?.toLowerCase()
+      documentType = ext === "pdf" ? "pdf" : ext === "doc" || ext === "docx" ? "word" : undefined
     }
 
     // Создаем MinHash сигнатуру
@@ -65,6 +81,8 @@ export async function POST(request: NextRequest) {
       institution || undefined,
       plagiarismPercentMl,
       aiPercentMl,
+      processingTimeMs,
+      documentType,
     )
 
     if (

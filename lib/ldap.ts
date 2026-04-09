@@ -27,6 +27,7 @@ export interface LDAPUser {
   username: string
   email?: string
   fullName?: string
+  middleName?: string
   dn: string
 }
 
@@ -192,6 +193,7 @@ export async function authenticateLDAP(
 
                 if (firstName || lastName || middleName) {
                   ldapUser.fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim()
+                  ldapUser.middleName = middleName || undefined
                 } else if (config.fullNameAttribute && userEntry[config.fullNameAttribute]) {
                   const fullName = userEntry[config.fullNameAttribute]
                   ldapUser.fullName = Array.isArray(fullName) ? fullName[0] : fullName
@@ -300,6 +302,7 @@ export async function authenticateLDAP(
 
       if (firstName || lastName || middleName) {
         ldapUser.fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim()
+        ldapUser.middleName = middleName || undefined
       } else if (config.fullNameAttribute && userEntry[config.fullNameAttribute]) {
         // Fallback на полное имя, если задано
         const fullName = userEntry[config.fullNameAttribute]
@@ -425,6 +428,7 @@ export async function getUserInfoLDAP(username: string): Promise<LDAPUser | null
 
     if (firstName || lastName || middleName) {
       ldapUser.fullName = [lastName, firstName, middleName].filter(Boolean).join(" ").trim()
+      ldapUser.middleName = middleName || undefined
     } else if (config.fullNameAttribute && userEntry[config.fullNameAttribute]) {
       const fullName = userEntry[config.fullNameAttribute]
       ldapUser.fullName = Array.isArray(fullName) ? fullName[0] : fullName
@@ -469,6 +473,7 @@ export function mapLDAPUserToUser(ldapUser: LDAPUser, defaultRole: UserRole = "s
     role: role,
     email: ldapUser.email,
     fullName: ldapUser.fullName,
+    middleName: ldapUser.middleName,
     institution: "БГУИР",
   }
 }
