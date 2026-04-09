@@ -4,11 +4,14 @@ import { signDocumentAccess } from "@/lib/report-access"
 import { categoryLabel } from "@/lib/category-labels"
 
 function getBaseUrl(request: NextRequest): string {
-  const origin = request.nextUrl.origin
-  if (origin) return origin
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")
   const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
   const proto = request.headers.get("x-forwarded-proto") ?? "http"
-  return host ? `${proto === "https" ? "https" : "http"}://${host}` : ""
+  if (!host) return ""
+  const hostLower = host.toLowerCase()
+  // За прокси request.nextUrl.origin нередко указывает localhost, поэтому отфильтровываем его.
+  if (hostLower.includes("localhost") || hostLower.includes("127.0.0.1")) return ""
+  return `${proto === "https" ? "https" : "http"}://${host}`
 }
 
 // GET - Документы пользователя (финальные и черновики в пределах 24 ч)
@@ -29,10 +32,10 @@ export async function GET(
     const documentsSummary = documents.map((doc) => {
       const hasReport = doc.status === "final" && !!getReportPdfPath(doc.id)
       const sig = hasReport ? signDocumentAccess("report", doc.id) : null
-      const reportViewUrl =
-        baseUrl && sig ? `${baseUrl}/api/report/${doc.id}/view?sig=${encodeURIComponent(sig)}` : null
-      const reportDownloadUrl =
-        baseUrl && sig ? `${baseUrl}/api/report/${doc.id}/download?sig=${encodeURIComponent(sig)}` : null
+      const reportViewPath = `/api/report/${doc.id}/view?sig=${encodeURIComponent(sig ?? "")}`
+      const reportDownloadPath = `/api/report/${doc.id}/download?sig=${encodeURIComponent(sig ?? "")}`
+      const reportViewUrl = sig ? (baseUrl ? `${baseUrl}${reportViewPath}` : reportViewPath) : null
+      const reportDownloadUrl = sig ? (baseUrl ? `${baseUrl}${reportDownloadPath}` : reportDownloadPath) : null
 
       return {
         id: doc.id,

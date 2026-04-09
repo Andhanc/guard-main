@@ -128,6 +128,7 @@ export function addDocumentToDb(
   status: DocumentStatus = "draft",
   userId?: string,
   institution?: string,
+  originalityPercent?: number,
   plagiarismPercentMl?: number,
   aiPercentMl?: number,
   processingTimeMs?: number,
@@ -146,7 +147,7 @@ export function addDocumentToDb(
       INSERT INTO documents
         (title, author, filename, document_type, file_path, content, word_count, upload_date, category, status, user_id, institution, minhash_signature_json, shingle_count, originality_percent, plagiarism_percent_ml, ai_percent_ml, processing_time_ms)
       VALUES
-        (@title, @author, @filename, @document_type, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, NULL, @plagiarism_percent_ml, @ai_percent_ml, @processing_time_ms)
+        (@title, @author, @filename, @document_type, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, @originality_percent, @plagiarism_percent_ml, @ai_percent_ml, @processing_time_ms)
     `,
     )
     .run({
@@ -164,6 +165,7 @@ export function addDocumentToDb(
       institution: institution ?? null,
       minhash_signature_json: JSON.stringify(minhashSignature ?? []),
       shingle_count: shingleCount ?? 0,
+      originality_percent: typeof originalityPercent === "number" ? Math.round(originalityPercent * 100) / 100 : null,
       plagiarism_percent_ml:
         typeof plagiarismPercentMl === "number" ? plagiarismPercentMl : null,
       ai_percent_ml: typeof aiPercentMl === "number" ? aiPercentMl : null,
@@ -187,6 +189,7 @@ export function addDocumentToDb(
     institution,
     minhashSignature,
     shingleCount,
+    originalityPercent,
     plagiarismPercentMl: plagiarismPercentMl,
     aiPercentMl: aiPercentMl,
     processingTimeMs: processingTimeMs,
@@ -259,7 +262,7 @@ export function getAllDocumentsFromDb(
   `
 
   const rows = db.prepare(sql).all(...params)
-  const docs = rows.map(mapRowToStoredDocument)
+  const docs: StoredDocument[] = rows.map(mapRowToStoredDocument)
 
   // TTL cleanup for drafts
   const catsForCleanup = categories?.length ? categories : getStorageCategories()
@@ -301,7 +304,7 @@ export function getUserDocuments(userId: string): StoredDocument[] {
     `,
     )
     .all(userId)
-  const docs = rows.map(mapRowToStoredDocument)
+  const docs: StoredDocument[] = rows.map(mapRowToStoredDocument)
   const now = Date.now()
   const filtered = docs.filter((d) => d.status === "final" || now - new Date(d.uploadDate).getTime() < DRAFT_TTL_MS)
   // cleanup for expired drafts (and delete their files)

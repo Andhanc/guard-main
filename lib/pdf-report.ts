@@ -51,6 +51,8 @@ export interface CheckResultForReport {
   totalDocumentsChecked: number
   similarDocuments: SimilarDocumentForReport[]
   processingTimeMs: number
+  plagiarismPercentMl?: number
+  aiPercentMl?: number
   uploadDate?: string
   status?: "draft" | "final"
   documentId?: number
@@ -336,6 +338,8 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
   // ——— Блок 2: Результаты ——— (сразу после блока ФИО / Тип / Название)
   const matchesPercent = Math.round((100 - result.uniquenessPercent) * 100) / 100
   const origPercent = Math.round(result.uniquenessPercent * 100) / 100
+  const aiPercent = Math.round((result.aiPercentMl ?? 0) * 100) / 100
+  const vectorPlagiarismPercent = Math.round((result.plagiarismPercentMl ?? matchesPercent) * 100) / 100
 
   // Небольшой отступ сверху перед блоком результатов (подвинули ближе к верхней линии)
   
@@ -391,7 +395,7 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
   doc.setTextColor(...grayText)
   doc.text(`${formatPercent(origPercent)}%`, valueX, rowY, { align: "right" })
 
-  // Третья строка: ИИ (статичная линия 0%)
+  // Третья строка: ИИ
   rowY += rowHeight
   doc.setTextColor(...grayText)
   doc.text("ИИ", metricsStartX, rowY)
@@ -399,13 +403,28 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
   doc.setFillColor(...barGray)
   doc.rect(barX, rowY - barHeight / 2, barWidth, barHeight, "F")
   doc.setFillColor(128, 82, 255) // фиолетовый
-  doc.rect(barX, rowY - barHeight / 2, 0, barHeight, "F")
+  doc.rect(barX, rowY - barHeight / 2, (barWidth * aiPercent) / 100, barHeight, "F")
 
   doc.setTextColor(...grayText)
-  doc.text(`${formatPercent(0)}%`, valueX, rowY, { align: "right" })
+  doc.text(`${formatPercent(aiPercent)}%`, valueX, rowY, { align: "right" })
 
   // Нижняя граница блока результатов
   y = rowY + 4
+  doc.setDrawColor(230, 235, 246)
+  doc.setLineWidth(0.4)
+  doc.line(margin, y, pageWidth - margin, y)
+  y += 7
+
+  // Блок "Детали анализа"
+  doc.setFontSize(8)
+  doc.setFont(FONT, "normal")
+  doc.setTextColor(...grayText)
+  doc.text("Детали анализа:", metricsStartX, y)
+  y += 5
+  doc.text(`Совпадения по векторной базе: ${formatPercent(vectorPlagiarismPercent)}%`, metricsStartX, y)
+  y += 4.5
+  doc.text(`Оценка признаков ИИ: ${formatPercent(aiPercent)}%`, metricsStartX, y)
+  y += 4.5
   doc.setDrawColor(230, 235, 246)
   doc.setLineWidth(0.4)
   doc.line(margin, y, pageWidth - margin, y)

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { normalizeContentForCheck } from "@/lib/plagiarism/algorithms"
+import { createShingles, MinHash, compareMinHashSignatures, normalizeContentForCheck } from "@/lib/plagiarism/algorithms"
 import { analyzeWithMlService } from "@/lib/analysis-client"
+import { getAllDocumentsFromDb, type StoredDocument } from "@/lib/local-storage"
 import { logInfo, logError } from "@/lib/logger"
 
 function clampPercent(n: number): number {
@@ -10,6 +11,60 @@ function clampPercent(n: number): number {
 
 function roundPercent(n: number): number {
   return Math.round(clampPercent(n) * 100) / 100
+}
+
+type SimilarDocumentSummary = {
+  id: number
+  title: string
+  author: string | null
+  userId?: string | null
+  similarity: number
+  category: string
+}
+
+const NUM_HASHES = 128
+const LOCAL_SIMILARITY_THRESHOLD = 10
+
+/**
+ * Выбирает базу для локального сравнения:
+ * - исключает документы текущего пользователя;
+ * - оставляет документы только того же модуля (category);
+ * - включает внешние документы (не ограничиваем institution).
+ */
+function getComparisonPoolForModule(
+  userId: string | undefined,
+  category: string | undefined,
+): StoredDocument[] {
+  if (!category) return []
+  const safeCategory = String(category).replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim()
+  if (!safeCategory) return []
+  return getAllDocumentsFromDb(userId, undefined, [safeCategory])
+}
+
+function buildLocalSimilarDocuments(
+  normalizedContent: string,
+  pool: StoredDocument[],
+  topK = 5,
+): SimilarDocumentSummary[] {
+  const queryShingles = createShingles(normalizedContent, 5)
+  const querySignature = new MinHash(NUM_HASHES).computeSignature(queryShingles)
+
+  const matches: SimilarDocumentSummary[] = []
+  for (const doc of pool) {
+    if (!Array.isArray(doc.minhashSignature) || doc.minhashSignature.length !== NUM_HASHES) continue
+    const similarity = roundPercent(compareMinHashSignatures(querySignature, doc.minhashSignature) * 100)
+    if (similarity < LOCAL_SIMILARITY_THRESHOLD) continue
+    matches.push({
+      id: doc.id,
+      title: doc.title,
+      author: doc.author,
+      userId: doc.userId ?? null,
+      similarity,
+      category: doc.category,
+    })
+  }
+
+  return matches.sort((a, b) => b.similarity - a.similarity).slice(0, topK)
 }
 
 // POST - Проверка документа на плагиат
@@ -30,6 +85,11 @@ export async function POST(request: NextRequest) {
 
     // Убираем титульный лист, содержание и приложения перед расчётом оригинальности
     const normalizedContent = normalizeContentForCheck(content)
+    const comparisonPool = getComparisonPoolForModule(
+      typeof body.userId === "string" ? body.userId : undefined,
+      typeof body.category === "string" ? body.category : undefined,
+    )
+    const similarDocuments = buildLocalSimilarDocuments(normalizedContent, comparisonPool, 5)
 
     const ml = await analyzeWithMlService(normalizedContent, {
       filename: typeof checkFilename === "string" ? checkFilename : undefined,
@@ -62,8 +122,8 @@ export async function POST(request: NextRequest) {
       processingTimeMs: processingTime,
       plagiarismPercent,
       uniquenessPercent,
-      totalDocumentsChecked: 0,
-      similarDocuments: [],
+      totalDocumentsChecked: comparisonPool.length,
+      similarDocuments,
       mlPlagiarismPercent: roundPercent(ml.plagiarismPercent),
       mlAiPercent: roundPercent(ml.aiPercent),
     })

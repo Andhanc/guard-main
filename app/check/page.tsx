@@ -161,6 +161,7 @@ export default function CheckPage() {
           uploadFormData.append("userId", user?.username || "")
           uploadFormData.append("institution", user?.institution || "БГУИР")
           uploadFormData.append("content", parsedFile.text)
+          uploadFormData.append("originality_percent", String(data.uniquenessPercent ?? 0))
           uploadFormData.append("processing_time_ms", String(data.processingTimeMs ?? 0))
           uploadFormData.append("document_type", parsedFile.fileType === "pdf" ? "pdf" : "word")
 
@@ -216,6 +217,8 @@ export default function CheckPage() {
               totalDocumentsChecked: resultWithId.totalDocumentsChecked,
               similarDocuments: resultWithId.similarDocuments,
               processingTimeMs: resultWithId.processingTimeMs,
+              plagiarismPercentMl: resultWithId.mlPlagiarismPercent,
+              aiPercentMl: resultWithId.mlAiPercent,
               uploadDate: new Date().toISOString(),
               status: "final" as const,
               documentId,

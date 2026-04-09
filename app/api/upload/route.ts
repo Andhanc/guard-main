@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     const institution = formData.get("institution") as string | null
     const mlPlagRaw = formData.get("plagiarism_percent_ml") as string | null
     const mlAiRaw = formData.get("ai_percent_ml") as string | null
+    const originalityRaw = formData.get("originality_percent") as string | null
     const processingTimeMsRaw = formData.get("processing_time_ms") as string | null
     const documentTypeRaw = formData.get("document_type") as string | null
 
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
 
     let plagiarismPercentMl: number | undefined
     let aiPercentMl: number | undefined
+    let originalityPercent: number | undefined
     let processingTimeMs: number | undefined
     let documentType: "word" | "pdf" | undefined
     if (mlPlagRaw != null && String(mlPlagRaw).trim() !== "" && mlAiRaw != null && String(mlAiRaw).trim() !== "") {
@@ -46,6 +48,12 @@ export async function POST(request: NextRequest) {
       if (!Number.isNaN(p) && !Number.isNaN(a)) {
         plagiarismPercentMl = p
         aiPercentMl = a
+      }
+    }
+    if (originalityRaw != null && String(originalityRaw).trim() !== "") {
+      const o = Number(originalityRaw)
+      if (!Number.isNaN(o) && Number.isFinite(o)) {
+        originalityPercent = Math.max(0, Math.min(100, Math.round(o * 100) / 100))
       }
     }
     if (processingTimeMsRaw != null && String(processingTimeMsRaw).trim() !== "") {
@@ -79,6 +87,7 @@ export async function POST(request: NextRequest) {
       status,
       userId || undefined,
       institution || undefined,
+      originalityPercent,
       plagiarismPercentMl,
       aiPercentMl,
       processingTimeMs,
