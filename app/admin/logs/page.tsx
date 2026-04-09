@@ -18,14 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { getSession } from "@/lib/auth"
 import * as XLSX from "xlsx"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/components/ui/pagination"
+import { TablePagination } from "@/components/ui/table-pagination"
 
 interface LogEntry {
   timestamp: string
@@ -234,42 +227,13 @@ export default function LogsPage() {
                 </div>
 
                 {filteredLogs.length > pageSize && (
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            setPage((p) => Math.max(1, p - 1))
-                          }}
-                        />
-                      </PaginationItem>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                        <PaginationItem key={p}>
-                          <PaginationLink
-                            href="#"
-                            isActive={p === currentPage}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              setPage(p)
-                            }}
-                          >
-                            {p}
-                          </PaginationLink>
-                        </PaginationItem>
-                      ))}
-                      <PaginationItem>
-                        <PaginationNext
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            setPage((p) => Math.min(totalPages, p + 1))
-                          }}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
+                  <TablePagination
+                    totalItems={filteredLogs.length}
+                    pageSize={pageSize}
+                    currentPage={currentPage}
+                    onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+                    onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  />
                 )}
               </div>
             )}

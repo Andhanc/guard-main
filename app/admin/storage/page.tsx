@@ -39,14 +39,7 @@ import {
 import { getSession } from "@/lib/auth"
 import { FileUpload } from "@/components/file-upload"
 import type { ParsedFile } from "@/lib/file-parser"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/components/ui/pagination"
+import { TablePagination } from "@/components/ui/table-pagination"
 
 interface DocumentData {
   id: number
@@ -474,44 +467,13 @@ export default function StorageManagementPage() {
                 </Table>
 
                 {filteredDocuments.length > pageSize && (
-                  <div className="mt-4">
-                    <Pagination>
-                      <PaginationContent>
-                        <PaginationItem>
-                          <PaginationPrevious
-                            href="#"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              setPage((p) => Math.max(1, p - 1))
-                            }}
-                          />
-                        </PaginationItem>
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                          <PaginationItem key={p}>
-                            <PaginationLink
-                              href="#"
-                              isActive={p === currentPage}
-                              onClick={(e) => {
-                                e.preventDefault()
-                                setPage(p)
-                              }}
-                            >
-                              {p}
-                            </PaginationLink>
-                          </PaginationItem>
-                        ))}
-                        <PaginationItem>
-                          <PaginationNext
-                            href="#"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              setPage((p) => Math.min(totalPages, p + 1))
-                            }}
-                          />
-                        </PaginationItem>
-                      </PaginationContent>
-                    </Pagination>
-                  </div>
+                  <TablePagination
+                    totalItems={filteredDocuments.length}
+                    pageSize={pageSize}
+                    currentPage={currentPage}
+                    onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+                    onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  />
                 )}
               </>
             )}

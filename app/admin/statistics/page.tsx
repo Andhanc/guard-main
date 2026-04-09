@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/tooltip"
 import { getSession } from "@/lib/auth"
 import { categoryLabel as staticCategoryLabel } from "@/lib/category-labels"
+import { TablePagination } from "@/components/ui/table-pagination"
 import * as XLSX from "xlsx"
 
 function categoryLabel(cat: string, documentTypes: Array<{ id: string; label: string }>): string {
@@ -567,32 +568,13 @@ export default function StatisticsPage() {
               </Table>
             </div>
             {documents.length > 0 && (
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground">
-                  Показано {startIdx + 1}-{Math.min(startIdx + ITEMS_PER_PAGE, documents.length)} из {documents.length}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={safePage <= 1}
-                    onClick={() => setTablePage((p) => Math.max(1, p - 1))}
-                  >
-                    Назад
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Страница {safePage} из {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={safePage >= totalPages}
-                    onClick={() => setTablePage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Вперёд
-                  </Button>
-                </div>
-              </div>
+              <TablePagination
+                totalItems={documents.length}
+                pageSize={ITEMS_PER_PAGE}
+                currentPage={safePage}
+                onPrevious={() => setTablePage((p) => Math.max(1, p - 1))}
+                onNext={() => setTablePage((p) => Math.min(totalPages, p + 1))}
+              />
             )}
           </CardContent>
         </Card>
