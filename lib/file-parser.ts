@@ -5,14 +5,20 @@
 
 import mammoth from "mammoth"
 
-const PDFJS_VERSION = "5.4.394"
-
 let pdfjs: any = null
+let pdfWorkerConfigured = false
+
+function configurePdfWorker() {
+  if (!pdfjs || pdfWorkerConfigured || typeof window === "undefined") return
+  // Используем локальный воркер из установленного пакета, без внешних CDN.
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString()
+  pdfWorkerConfigured = true
+}
 
 if (typeof window !== "undefined") {
   import("pdfjs-dist").then((module) => {
     pdfjs = module
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`
+    configurePdfWorker()
   })
 }
 
@@ -30,8 +36,8 @@ async function parsePDF(file: File): Promise<string> {
   if (!pdfjs) {
     const module = await import("pdfjs-dist")
     pdfjs = module
-    pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`
   }
+  configurePdfWorker()
 
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise
