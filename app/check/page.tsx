@@ -142,6 +142,7 @@ export default function CheckPage() {
           topK: 5,
           institution: user?.institution || "БГУИР",
           category: metadata.category,
+          status: metadata.status,
             userId: user?.username,
             userRole: user?.role,
         }),

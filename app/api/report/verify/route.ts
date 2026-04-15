@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getDocumentByIdFromDb, getReportPdfPath } from "@/lib/local-storage"
+import { verifyDocumentAccess } from "@/lib/report-access"
 
 /**
  * GET /api/report/verify?documentId=123
@@ -10,6 +11,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const documentId = searchParams.get("documentId")
+    const sig = searchParams.get("sig")
     const raw = searchParams.get("raw") === "1"
 
     if (!documentId) {
@@ -19,6 +21,12 @@ export async function GET(request: NextRequest) {
     const id = parseInt(documentId, 10)
     if (Number.isNaN(id)) {
       return NextResponse.json({ success: false, error: "Некорректный documentId" }, { status: 400 })
+    }
+    if (!sig || !verifyDocumentAccess("report", id, sig)) {
+      return NextResponse.json(
+        { success: false, error: "Доступ запрещён. Используйте ссылку из QR-кода на справке." },
+        { status: 403 },
+      )
     }
 
     const doc = getDocumentByIdFromDb(id)

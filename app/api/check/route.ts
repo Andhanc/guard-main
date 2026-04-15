@@ -72,6 +72,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { content, filename: checkFilename } = body
+    const category = typeof body?.category === "string" && body.category.trim() ? body.category.trim() : "uncategorized"
+    const status = body?.status === "final" ? "final" : "draft"
 
     if (!content) {
       return NextResponse.json({ success: false, error: "Content is required" }, { status: 400 })
@@ -117,6 +119,8 @@ export async function POST(request: NextRequest) {
       uniquenessPercent,
       plagiarismPercent,
       processingTimeMs: processingTime,
+      category,
+      status,
       mlAnalysisUsed: Boolean(ml),
       localCandidatesChecked: comparisonPool.length,
     })

@@ -3,26 +3,17 @@ import { generatePDFReport } from "@/lib/pdf-report"
 import { saveReportPdf } from "@/lib/local-storage"
 import { logInfo } from "@/lib/logger"
 
-function getBaseUrl(request: NextRequest): string {
-  // Приоритет 1: переменная окружения (для production)
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL
+const DEFAULT_REPORT_BASE_URL = "http://172.16.82.130:3000"
+
+function getBaseUrl(_request: NextRequest): string {
+  // Для QR нужен публичный адрес, который гарантированно открывается для пользователей.
+  const configured = (process.env.REPORT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim()
+  if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
+    return configured.replace(/\/$/, "")
   }
 
-  // Приоритет 2: заголовки запроса (для работы через прокси/nginx)
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
-  const proto = request.headers.get("x-forwarded-proto") ?? "http"
-  
-  if (host) {
-    // Проверяем, что это не localhost (для production)
-    const hostLower = host.toLowerCase()
-    if (!hostLower.includes("localhost") && !hostLower.includes("127.0.0.1")) {
-      return `${proto === "https" ? "https" : "http"}://${host}`
-    }
-  }
-
-  // Fallback: используем переменную окружения или localhost для разработки
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+  // Fallback: фиксированный адрес сервера для QR-ссылок.
+  return DEFAULT_REPORT_BASE_URL
 }
 
 // POST - Генерация PDF отчета

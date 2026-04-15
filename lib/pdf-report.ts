@@ -474,7 +474,7 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
       const id = result.documentId!
       const sigReport = signDocumentAccess("report", id)
       const sigOriginal = signDocumentAccess("original", id)
-      const reportPdfUrl = `${baseUrl}/api/report/${id}/view?sig=${encodeURIComponent(sigReport)}`
+      const verifyReportUrl = `${baseUrl}/api/report/verify?documentId=${id}&sig=${encodeURIComponent(sigReport)}`
       const originalWorkUrl = `${baseUrl}/api/report/${id}/original?sig=${encodeURIComponent(sigOriginal)}`
 
       // Два блока: [QR] [текст справа], расположенные в одну строку.
@@ -492,7 +492,7 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
       const textOffsetX = 6
       const captionW = blockWidth - qrSize - textOffsetX
 
-      const qr1 = await QRCode.toDataURL(reportPdfUrl, { width: 200, margin: 1 })
+      const qr1 = await QRCode.toDataURL(verifyReportUrl, { width: 200, margin: 1 })
       const qr2 = await QRCode.toDataURL(originalWorkUrl, { width: 200, margin: 1 })
 
       doc.addImage(qr1, "PNG", qr1X, qrY, qrSize, qrSize)

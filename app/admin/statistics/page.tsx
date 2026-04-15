@@ -115,6 +115,11 @@ export default function StatisticsPage() {
   const [chart5Categories, setChart5Categories] = useState<string[]>([])
   const [chart5Data, setChart5Data] = useState<Array<Record<string, string | number>> | null>(null)
   const [chart5Loading, setChart5Loading] = useState(false)
+  const [chart6Year, setChart6Year] = useState(new Date().getFullYear())
+  const [chart6Statuses, setChart6Statuses] = useState<string[]>([])
+  const [chart6Categories, setChart6Categories] = useState<string[]>([])
+  const [chart6Data, setChart6Data] = useState<Array<Record<string, string | number>> | null>(null)
+  const [chart6Loading, setChart6Loading] = useState(false)
   // Фильтры на таблицу (можно выбрать несколько типов работ и статусов)
   const [tableFilters, setTableFilters] = useState({
     startDate: "",
@@ -231,6 +236,22 @@ export default function StatisticsPage() {
       .finally(() => setChart5Loading(false))
   }, [chart5Year, chart5Statuses, chart5Categories])
 
+  useEffect(() => {
+    setChart6Loading(true)
+    const params = new URLSearchParams()
+    params.append("year", chart6Year.toString())
+    if (chart6Statuses.length > 0) params.append("status", chart6Statuses.join(","))
+    if (chart6Categories.length > 0) params.append("category", chart6Categories.join(","))
+    fetch(`/api/admin/statistics/processing-time-ranges?${params.toString()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setChart6Data(data.ranges ?? [])
+        else setChart6Data([])
+      })
+      .catch(() => setChart6Data([]))
+      .finally(() => setChart6Loading(false))
+  }, [chart6Year, chart6Statuses, chart6Categories])
+
   const fetchStatistics = async () => {
     try {
       const params = new URLSearchParams()
@@ -322,7 +343,7 @@ export default function StatisticsPage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2">Дашборд</h1>
           <p className="text-muted-foreground">
-            Таблица с фильтрами и графики 1–5 в одной панели по ТЗ
+            Таблица с фильтрами и графики 1–6 в одной панели по ТЗ
           </p>
         </div>
 
@@ -1234,6 +1255,133 @@ export default function StatisticsPage() {
                 </ResponsiveContainer>
               )}
               {!chart5Loading && (!chart5Data || chart5Data.length === 0) && (
+                <div className="py-12 text-center text-muted-foreground text-sm">Нет данных за выбранный период</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* График 6 (столбчатый): по диапазонам % оригинальности, время обработки, столбцы — тип работы */}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <CardTitle>График 6. Время обработки по проценту оригинальности (столбчатый)</CardTitle>
+                  <CardDescription>
+                    По горизонтали — процент оригинальности: 0-10, 11-20, …, 91-100. По вертикали — время обработки (сек). Столбцы — тип работы (стек).
+                    Фильтрация: год, тип работы, статус (можно выбрать несколько).
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-muted-foreground text-sm whitespace-nowrap">Год</Label>
+                    <Select value={chart6Year.toString()} onValueChange={(v) => setChart6Year(Number.parseInt(v, 10))}>
+                      <SelectTrigger className="w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map(
+                          (y) => (
+                            <SelectItem key={y} value={y.toString()}>
+                              {y}
+                            </SelectItem>
+                          ),
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-[200px] justify-between">
+                        Статус: {chart6Statuses.length === 0 ? "Все" : chart6Statuses.map((s) => (s === "final" ? "Финальная" : "Черновая")).join(", ")}
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-3" align="end">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Статус документа</p>
+                        {STATUS_OPTIONS.map((opt) => (
+                          <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={chart6Statuses.includes(opt.value)}
+                              onCheckedChange={(checked) => {
+                                setChart6Statuses((prev) =>
+                                  checked ? [...prev, opt.value] : prev.filter((s) => s !== opt.value),
+                                )
+                              }}
+                            />
+                            <span className="text-sm">{opt.label}</span>
+                          </label>
+                        ))}
+                        <p className="text-xs text-muted-foreground">Пусто = все статусы</p>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-[220px] justify-between">
+                        Тип работы: {chart6Categories.length === 0 ? "Все" : chart6Categories.length + " выб."}
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-3" align="end">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Тип работы</p>
+                        {BAR_CHART_CATEGORIES.map((cat) => (
+                          <label key={cat} className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={chart6Categories.includes(cat)}
+                              onCheckedChange={(checked) => {
+                                setChart6Categories((prev) =>
+                                  checked ? [...prev, cat] : prev.filter((c) => c !== cat),
+                                )
+                              }}
+                            />
+                            <span className="text-sm">{categoryLabel(cat, documentTypes)}</span>
+                          </label>
+                        ))}
+                        <p className="text-xs text-muted-foreground">Пусто = все типы</p>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {chart6Loading && (
+                <div className="py-12 text-center text-muted-foreground text-sm">Загрузка графика...</div>
+              )}
+              {!chart6Loading && chart6Data && chart6Data.length > 0 && (
+                <ResponsiveContainer width="100%" height={340}>
+                  <BarChart data={chart6Data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="rangeLabel" />
+                    <YAxis allowDecimals />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [`${Number(value).toFixed(2)} с`, categoryLabel(name, documentTypes)]}
+                      labelFormatter={(label) => `Оригинальность: ${label}%`}
+                    />
+                    <Legend formatter={(value) => categoryLabel(value, documentTypes)} />
+                    {BAR_CHART_CATEGORIES.map((cat, i) => (
+                      <Bar
+                        key={cat}
+                        dataKey={cat}
+                        name={categoryLabel(cat, documentTypes)}
+                        stackId="a"
+                        fill={COLORS[i % COLORS.length]}
+                      >
+                        <LabelList
+                          dataKey={cat}
+                          position="center"
+                          fill="#fff"
+                          fontSize={10}
+                          formatter={(v: number) => (v > 0 ? Number(v).toFixed(1) : "")}
+                        />
+                      </Bar>
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {!chart6Loading && (!chart6Data || chart6Data.length === 0) && (
                 <div className="py-12 text-center text-muted-foreground text-sm">Нет данных за выбранный период</div>
               )}
             </CardContent>
