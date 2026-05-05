@@ -1,10 +1,25 @@
 version: "3.9"
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: plagiarismguard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bsuir
+      POSTGRES_USER: bsuir
+      POSTGRES_PASSWORD: bsuir
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - plagiarismguard-network
+
   app:
     build: .
     container_name: plagiarismguard-app
     restart: unless-stopped
+    depends_on:
+      - db
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -61,6 +76,9 @@ networks:
     driver: bridge
   # antiplag:
   #   external: true
+
+volumes:
+  pgdata:
 
 
 
