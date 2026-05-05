@@ -29,16 +29,16 @@ export async function POST(request: NextRequest) {
           const ldapUser = mapLDAPUserToUser(ldapResult.user)
           
           // Проверяем, есть ли пользователь в локальной базе (для получения роли)
-          const storedUser = getUserByUsername(normalizedUsername)
+          const storedUser = await getUserByUsername(normalizedUsername)
           if (storedUser) {
             // Если пользователь есть в локальной базе, используем его роль
             ldapUser.role = storedUser.role
-            updateLastLogin(normalizedUsername)
+            await updateLastLogin(normalizedUsername)
           } else {
             // Если пользователя нет в локальной базе, создаем запись с ролью по умолчанию
             // Можно настроить определение роли на основе групп LDAP
             // Для LDAP пользователей используем специальный маркер пароля, который не будет использоваться для локальной аутентификации
-            const registerResult = registerUser(
+            const registerResult = await registerUser(
               normalizedUsername,
               "LDAP_AUTH_ONLY_USER_MARKER", // Специальный маркер для LDAP пользователей (достаточно длинный для валидации)
               ldapUser.role,
@@ -74,9 +74,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Проверяем локальную базу пользователей
-    const storedUser = getUserByUsername(normalizedUsername)
+    const storedUser = await getUserByUsername(normalizedUsername)
     if (storedUser && storedUser.password === normalizedPassword) {
-      updateLastLogin(normalizedUsername)
+      await updateLastLogin(normalizedUsername)
       logInfo("Пользователь авторизован", normalizedUsername, storedUser.role, "login")
 
       return NextResponse.json({

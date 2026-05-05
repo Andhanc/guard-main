@@ -4,8 +4,8 @@ import { getAllDocumentsFromDb, deleteDocumentFromDb, getDocumentCountFromDb } f
 // GET - Список всех документов
 export async function GET() {
   try {
-    const documents = getAllDocumentsFromDb()
-    const count = getDocumentCountFromDb()
+    const documents = await getAllDocumentsFromDb()
+    const count = await getDocumentCountFromDb()
 
     // Возвращаем без content для экономии трафика
     const documentsSummary = documents.map((doc) => ({
@@ -46,7 +46,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Document ID is required" }, { status: 400 })
     }
 
-    const deleted = deleteDocumentFromDb(Number.parseInt(id))
+    const deleted = await deleteDocumentFromDb(Number.parseInt(id))
 
     if (deleted) {
       return NextResponse.json({

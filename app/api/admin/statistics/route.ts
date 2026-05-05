@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const minPlagiarism = Number.parseInt(searchParams.get("minPlagiarism") || "0")
     const maxPlagiarism = Number.parseInt(searchParams.get("maxPlagiarism") || "100")
 
-    const documents = getAllDocumentsFromDb()
+    const documents = await getAllDocumentsFromDb()
     const logs = getLogs(
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,

@@ -31,10 +31,10 @@ const LOCAL_SIMILARITY_THRESHOLD = 10
  * - оставляет документы только того же модуля (category);
  * - включает внешние документы (не ограничиваем institution).
  */
-function getComparisonPoolForModule(
+async function getComparisonPoolForModule(
   userId: string | undefined,
   category: string | undefined,
-): StoredDocument[] {
+): Promise<StoredDocument[]> {
   if (!category) return []
   const safeCategory = String(category).replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim()
   if (!safeCategory) return []
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     // Убираем титульный лист, содержание и приложения перед расчётом оригинальности
     const normalizedContent = normalizeContentForCheck(content)
-    const comparisonPool = getComparisonPoolForModule(
+    const comparisonPool = await getComparisonPoolForModule(
       typeof body.userId === "string" ? body.userId : undefined,
       typeof body.category === "string" ? body.category : undefined,
     )

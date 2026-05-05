@@ -19,27 +19,27 @@ Thumbs.db
 !.vscode/settings.json
 !.vscode/extensions.json
 
-# env / секреты
+# env / секреты (не коммитить локальные креды)
 .env
 .env.*
 !.env.example
-!.env.local
+!.env.docker.example
 
 # lock-файлы (оставим только один менеджер)
 pnpm-lock.yaml
 yarn.lock
-package-lock.json
 
-# локальные данные и загруженные файлы
-data/uploads
-data/reports
-data/logs
-# JSON файлы с данными (не должны быть в git)
-data/*.json
-data/**/documents.json
-data/_index.json
-data/users.json
-data/document-types.json
+# Локальная рабочая директория приложения — не коммитить целиком
+data/
+
+# SQL дампы и локальные базы — не коммитить
+dump.sql
+*.db
+*.db-shm
+*.db-wal
+
+# Локальный черновик текста без необходимости в репозитории
+KURSOVAY_razdeli_po_proektu.txt
 
 # Python helper (если будут артефакты)
 __pycache__/

@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   }
 
   startQueueWorker()
-  const { id } = enqueueJob(type, payload, { runAfterMs })
+  const { id } = await enqueueJob(type, payload, { runAfterMs })
   return NextResponse.json({ success: true, id })
 }
 

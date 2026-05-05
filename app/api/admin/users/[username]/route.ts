@@ -13,13 +13,13 @@ export async function PUT(
     const body = await request.json()
     const { password, role, additionalRoles, email, fullName, institution } = body
 
-    const user = getUserByUsername(username)
+    const user = await getUserByUsername(username)
     if (!user) {
       return NextResponse.json({ success: false, error: "Пользователь не найден" }, { status: 404 })
     }
 
     // Обновляем данные пользователя
-    const db = readUsersDatabase()
+    const db = await readUsersDatabase()
     const userIndex = db.users.findIndex((u) => u.username === username)
 
     if (userIndex === -1) {
@@ -45,7 +45,7 @@ export async function PUT(
       db.users[userIndex].institution = institution
     }
 
-    writeUsersDatabase(db)
+    await writeUsersDatabase(db)
 
     logInfo("Пользователь отредактирован администратором", username, "admin", "edit_user")
     return NextResponse.json({
@@ -66,7 +66,7 @@ export async function DELETE(
   try {
     const { username } = await params
 
-    const deleted = deleteUser(username)
+    const deleted = await deleteUser(username)
     if (deleted) {
       logInfo("Пользователь удален администратором", username, "admin", "delete_user")
       return NextResponse.json({

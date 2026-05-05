@@ -42,7 +42,7 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: "Необходима авторизация" }, { status: 401 })
     }
 
-    const doc = getDocumentByIdFromDb(id)
+    const doc = await getDocumentByIdFromDb(id)
     if (!doc) {
       return NextResponse.json({ success: false, error: "Документ не найден" }, { status: 404 })
     }
@@ -55,7 +55,7 @@ export async function PATCH(
       )
     }
 
-    const updated = updateDocumentStatus(id, status as DocumentStatus)
+    const updated = await updateDocumentStatus(id, status as DocumentStatus)
 
     if (updated) {
       // Если переводим документ в финальный статус из профиля и PDF-отчета еще нет —

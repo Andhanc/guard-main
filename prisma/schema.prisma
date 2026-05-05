@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  username            String   @id
+  password            String
+  role                String
+  additionalRolesJson String?  @map("additional_roles_json")
+  email               String?
+  fullName            String?  @map("full_name")
+  institution         String?
+  createdAt           DateTime @map("created_at")
+  lastLogin           DateTime? @map("last_login")
+
+  @@map("users")
+}
+
+model Document {
+  id                 Int      @id @default(autoincrement())
+  title              String
+  author             String?
+  filename           String?
+  documentType       String?  @map("document_type")
+  filePath           String?  @map("file_path")
+  content            String
+  wordCount          Int      @map("word_count")
+  uploadDate         DateTime @map("upload_date")
+  category           String
+  status             String
+  userId             String?  @map("user_id")
+  institution        String?
+  minhashSignatureJson String @map("minhash_signature_json")
+  shingleCount       Int      @map("shingle_count")
+  originalityPercent Float?   @map("originality_percent")
+  plagiarismPercentMl Float?  @map("plagiarism_percent_ml")
+  aiPercentMl        Float?   @map("ai_percent_ml")
+  processingTimeMs   Int?     @map("processing_time_ms")
+
+  @@index([uploadDate], map: "idx_documents_upload_date")
+  @@index([category], map: "idx_documents_category")
+  @@index([userId], map: "idx_documents_user_id")
+  @@index([status], map: "idx_documents_status")
+  @@index([institution], map: "idx_documents_institution")
+  @@map("documents")
+}
+
+model Job {
+  id         Int       @id @default(autoincrement())
+  type       String
+  payloadJson String   @map("payload_json")
+  status     String
+  resultJson String?   @map("result_json")
+  error      String?
+  createdAt  DateTime  @map("created_at")
+  startedAt  DateTime? @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+  attempts   Int       @default(0)
+  maxAttempts Int      @default(3) @map("max_attempts")
+  runAfterMs Int?      @map("run_after_ms")
+  lockedBy   String?   @map("locked_by")
+  lockedAtMs Int?      @map("locked_at_ms")
+
+  @@index([status, runAfterMs, id], map: "idx_jobs_status_run_after")
+  @@index([lockedAtMs], map: "idx_jobs_locked_at")
+  @@map("jobs")
+}

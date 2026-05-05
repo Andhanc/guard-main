@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const statuses = statusParam ? statusParam.split(",").filter(Boolean) : []
     const categories = categoryParam ? categoryParam.split(",").filter(Boolean) : []
 
-    const documents = getAllDocumentsFromDb()
+    const documents = await getAllDocumentsFromDb()
 
     let filtered = documents.filter((doc) => {
       const d = new Date(doc.uploadDate)

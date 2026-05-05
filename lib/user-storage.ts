@@ -4,7 +4,7 @@
  */
 
 import type { User, UserRole } from "./auth"
-import { getSqlite } from "./sqlite"
+import { prisma } from "./prisma"
 import { ensureSqliteSeededFromLocalJson } from "./sqlite-seed"
 
 export interface StoredUser {
@@ -20,60 +20,66 @@ export interface StoredUser {
   lastLogin?: string
 }
 
-interface UserDatabase {
+export interface UserDatabase {
   users: StoredUser[]
 }
 
-function initSqlite() {
-  const db = getSqlite()
-  ensureSqliteSeededFromLocalJson()
-  return db
+async function initDb() {
+  await ensureSqliteSeededFromLocalJson()
+  return prisma
 }
 
-export function readUsersDatabase(): UserDatabase {
-  const users = getAllUsers()
+export async function readUsersDatabase(): Promise<UserDatabase> {
+  const users = await getAllUsers()
   return { users }
 }
 
-export function writeUsersDatabase(db: UserDatabase) {
-  const sqlite = initSqlite()
-  const insert = sqlite.prepare(`
-    INSERT OR REPLACE INTO users
-      (username, password, role, additional_roles_json, email, full_name, institution, created_at, last_login)
-    VALUES
-      (@username, @password, @role, @additional_roles_json, @email, @full_name, @institution, @created_at, @last_login)
-  `)
-  sqlite.transaction(() => {
-    for (const u of db.users ?? []) {
-      insert.run({
-        username: u.username,
-        password: u.password,
-        role: u.role,
-        additional_roles_json: u.additionalRoles ? JSON.stringify(u.additionalRoles) : null,
-        email: u.email ?? null,
-        full_name: u.fullName ?? null,
-        institution: u.institution ?? "БГУИР",
-        created_at: u.createdAt ?? new Date().toISOString(),
-        last_login: u.lastLogin ?? null,
-      })
-    }
-  })()
+export async function writeUsersDatabase(db: UserDatabase) {
+  const client = await initDb()
+  await client.$transaction(
+    (db.users ?? []).map((u) =>
+      client.user.upsert({
+        where: { username: u.username },
+        update: {
+          password: u.password,
+          role: u.role,
+          additionalRolesJson: u.additionalRoles ? JSON.stringify(u.additionalRoles) : null,
+          email: u.email ?? null,
+          fullName: u.fullName ?? null,
+          institution: u.institution ?? "БГУИР",
+          createdAt: new Date(u.createdAt ?? new Date().toISOString()),
+          lastLogin: u.lastLogin ? new Date(u.lastLogin) : null,
+        },
+        create: {
+          username: u.username,
+          password: u.password,
+          role: u.role,
+          additionalRolesJson: u.additionalRoles ? JSON.stringify(u.additionalRoles) : null,
+          email: u.email ?? null,
+          fullName: u.fullName ?? null,
+          institution: u.institution ?? "БГУИР",
+          createdAt: new Date(u.createdAt ?? new Date().toISOString()),
+          lastLogin: u.lastLogin ? new Date(u.lastLogin) : null,
+        },
+      }),
+    ),
+  )
 }
 
 // Регистрация нового пользователя
-export function registerUser(
+export async function registerUser(
   username: string,
   password: string,
   role: UserRole = "student",
   email?: string,
   fullName?: string,
   institution?: string,
-): { success: boolean; error?: string; user?: User } {
-  const sqlite = initSqlite()
+): Promise<{ success: boolean; error?: string; user?: User }> {
+  const client = await initDb()
   const normalizedUsername = username.trim()
 
   // Проверка на существующего пользователя
-  const existing = sqlite.prepare(`SELECT 1 FROM users WHERE username = ?`).get(normalizedUsername)
+  const existing = await client.user.findUnique({ where: { username: normalizedUsername } })
   if (existing) {
     return { success: false, error: "Пользователь с таким логином уже существует" }
   }
@@ -98,25 +104,19 @@ export function registerUser(
     createdAt: new Date().toISOString(),
   }
 
-  sqlite
-    .prepare(
-      `
-      INSERT INTO users
-        (username, password, role, additional_roles_json, email, full_name, institution, created_at, last_login)
-      VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, NULL)
-    `,
-    )
-    .run(
-      newUser.username,
-      newUser.password,
-      newUser.role,
-      newUser.additionalRoles ? JSON.stringify(newUser.additionalRoles) : null,
-      newUser.email ?? null,
-      newUser.fullName ?? null,
-      newUser.institution ?? "БГУИР",
-      newUser.createdAt,
-    )
+  await client.user.create({
+    data: {
+      username: newUser.username,
+      password: newUser.password,
+      role: newUser.role,
+      additionalRolesJson: newUser.additionalRoles ? JSON.stringify(newUser.additionalRoles) : null,
+      email: newUser.email ?? null,
+      fullName: newUser.fullName ?? null,
+      institution: newUser.institution ?? "БГУИР",
+      createdAt: new Date(newUser.createdAt),
+      lastLogin: null,
+    },
+  })
 
   return {
     success: true,
@@ -131,67 +131,71 @@ export function registerUser(
 }
 
 // Получение пользователя по логину
-export function getUserByUsername(username: string): StoredUser | null {
-  const sqlite = initSqlite()
-  const row = sqlite.prepare(`SELECT * FROM users WHERE username = ?`).get(username.trim()) as any
+export async function getUserByUsername(username: string): Promise<StoredUser | null> {
+  const client = await initDb()
+  const row = await client.user.findUnique({ where: { username: username.trim() } })
   if (!row) return null
   return {
     username: row.username,
     password: row.password,
     role: row.role,
-    additionalRoles: row.additional_roles_json ? JSON.parse(row.additional_roles_json) : [],
+    additionalRoles: row.additionalRolesJson ? JSON.parse(row.additionalRolesJson) : [],
     email: row.email ?? undefined,
-    fullName: row.full_name ?? undefined,
+    fullName: row.fullName ?? undefined,
     institution: row.institution ?? undefined,
-    createdAt: row.created_at,
-    lastLogin: row.last_login ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+    lastLogin: row.lastLogin?.toISOString() ?? undefined,
   }
 }
 
 // Обновление последнего входа
-export function updateLastLogin(username: string) {
-  const sqlite = initSqlite()
-  sqlite.prepare(`UPDATE users SET last_login = ? WHERE username = ?`).run(new Date().toISOString(), username.trim())
+export async function updateLastLogin(username: string) {
+  const client = await initDb()
+  await client.user.update({
+    where: { username: username.trim() },
+    data: { lastLogin: new Date() },
+  })
 }
 
 // Получение всех пользователей (для админов)
-export function getAllUsers(): StoredUser[] {
-  const sqlite = initSqlite()
-  const rows = sqlite.prepare(`SELECT * FROM users ORDER BY created_at DESC`).all() as any[]
+export async function getAllUsers(): Promise<StoredUser[]> {
+  const client = await initDb()
+  const rows = await client.user.findMany({ orderBy: { createdAt: "desc" } })
   return rows.map((row) => ({
     username: row.username,
     password: row.password,
     role: row.role,
-    additionalRoles: row.additional_roles_json ? JSON.parse(row.additional_roles_json) : [],
+    additionalRoles: row.additionalRolesJson ? JSON.parse(row.additionalRolesJson) : [],
     email: row.email ?? undefined,
-    fullName: row.full_name ?? undefined,
+    fullName: row.fullName ?? undefined,
     institution: row.institution ?? undefined,
-    createdAt: row.created_at,
-    lastLogin: row.last_login ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+    lastLogin: row.lastLogin?.toISOString() ?? undefined,
   }))
 }
 
 // Удаление пользователя (для админов)
-export function deleteUser(username: string): boolean {
-  const sqlite = initSqlite()
-  const info = sqlite.prepare(`DELETE FROM users WHERE username = ?`).run(username.trim())
-  return info.changes > 0
+export async function deleteUser(username: string): Promise<boolean> {
+  const client = await initDb()
+  const info = await client.user.deleteMany({ where: { username: username.trim() } })
+  return info.count > 0
 }
 
 // Обновление роли пользователя (для админов)
-export function updateUserRole(username: string, role: UserRole): boolean {
-  const sqlite = initSqlite()
-  const info = sqlite.prepare(`UPDATE users SET role = ? WHERE username = ?`).run(role, username.trim())
-  return info.changes > 0
+export async function updateUserRole(username: string, role: UserRole): Promise<boolean> {
+  const client = await initDb()
+  const info = await client.user.updateMany({ where: { username: username.trim() }, data: { role } })
+  return info.count > 0
 }
 
 // Обновление дополнительных ролей пользователя (для админов)
-export function updateUserAdditionalRoles(username: string, additionalRoles: UserRole[]): boolean {
-  const sqlite = initSqlite()
+export async function updateUserAdditionalRoles(username: string, additionalRoles: UserRole[]): Promise<boolean> {
+  const client = await initDb()
   const roles = additionalRoles?.filter(Boolean) ?? []
-  const info = sqlite
-    .prepare(`UPDATE users SET additional_roles_json = ? WHERE username = ?`)
-    .run(JSON.stringify(roles), username.trim())
-  return info.changes > 0
+  const info = await client.user.updateMany({
+    where: { username: username.trim() },
+    data: { additionalRolesJson: JSON.stringify(roles) },
+  })
+  return info.count > 0
 }
 

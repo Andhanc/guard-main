@@ -14,7 +14,10 @@ services:
       # ANALYSIS_SERVICE_URL: "http://analysis:8765"
       # ANALYSIS_SERVICE_API_KEY: "если задан ANALYSIS_API_KEY в ML-сервисе"
       # Связь с ML на отдельном компьютере (доступно из сети):
-      ANALYSIS_SERVICE_URL: "http://172.16.251.219:8765"
+      # Подстановка из `.env` в этой директории (см. env.docker.example)
+      ANALYSIS_SERVICE_URL: "${ANALYSIS_SERVICE_URL}"
+      ANALYSIS_SERVICE_API_KEY: "${ANALYSIS_SERVICE_API_KEY:-}"
+      DATABASE_URL: "${DATABASE_URL}"
       # LDAP переменные (можно переопределить через .env файл или docker-compose.override.yml)
       # LDAP_ENABLED: "false"
       # LDAP_URL: "ldaps://ldap.bsuir.by"

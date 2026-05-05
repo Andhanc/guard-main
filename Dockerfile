@@ -24,6 +24,9 @@ ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Prisma client generation is required for runtime DB access.
+RUN npx prisma generate
+
 # Сборка Next.js приложения
 RUN npm run build
 

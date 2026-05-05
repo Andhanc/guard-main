@@ -25,7 +25,7 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "Некорректный ID документа" }, { status: 400 })
     }
 
-    const doc = getDocumentByIdFromDb(id)
+    const doc = await getDocumentByIdFromDb(id)
     if (!doc) {
       return NextResponse.json(
         { success: false, error: "Документ не найден" },
@@ -41,7 +41,7 @@ export async function DELETE(
     }
 
     deleteReportPdf(id)
-    const deleted = deleteDocumentFromDb(id)
+    const deleted = await deleteDocumentFromDb(id)
 
     if (deleted) {
       return NextResponse.json({

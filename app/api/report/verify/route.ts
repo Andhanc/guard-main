@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const doc = getDocumentByIdFromDb(id)
+    const doc = await getDocumentByIdFromDb(id)
     if (!doc) {
       return NextResponse.json(
         { success: false, error: "Документ не найден в локальном хранилище" },

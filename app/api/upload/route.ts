@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     const signature = minhash.computeSignature(shingles)
 
     // Добавляем в базу данных этой категории
-    let doc = addDocumentToDb(
+    let doc = await addDocumentToDb(
       title,
       normalizedContent,
       signature,
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     ) {
       const ml = await analyzeWithMlService(normalizedContent, { filename: file.name, documentId: doc.id })
       if (ml) {
-        updateDocumentMlScores(doc.id, ml.plagiarismPercent, ml.aiPercent)
+        await updateDocumentMlScores(doc.id, ml.plagiarismPercent, ml.aiPercent)
         doc = {
           ...doc,
           plagiarismPercentMl: ml.plagiarismPercent,

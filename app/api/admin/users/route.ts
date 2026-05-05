@@ -6,8 +6,8 @@ import { logInfo, logError } from "@/lib/logger"
 // GET - Получение всех пользователей
 export async function GET() {
   try {
-    const users = getAllUsers()
-    const documents = getAllDocumentsFromDb()
+    const users = await getAllUsers()
+    const documents = await getAllDocumentsFromDb()
 
     // Подсчитываем количество документов для каждого пользователя
     const userDocumentCounts = new Map<string, number>()
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Логин и пароль обязательны" }, { status: 400 })
     }
 
-    const result = registerUser(username, password, role || "student", email, fullName, institution)
+    const result = await registerUser(username, password, role || "student", email, fullName, institution)
 
     if (result.success) {
       logInfo("Пользователь добавлен администратором", username, "admin", "add_user", {

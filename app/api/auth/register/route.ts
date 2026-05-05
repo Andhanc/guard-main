@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Логин и пароль обязательны" }, { status: 400 })
     }
 
-    const result = registerUser(username, password, role || "student", email, fullName, institution)
+    const result = await registerUser(username, password, role || "student", email, fullName, institution)
 
     if (result.success) {
       logInfo("Пользователь зарегистрирован", username, role, "register", { email, fullName })

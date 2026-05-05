@@ -102,6 +102,24 @@ NEXT_PUBLIC_APP_URL=https://guard-main.by
 | `PORT` | Порт приложения | Docker Compose (3000) |
 | `NEXT_TELEMETRY_DISABLED` | Отключение телеметрии Next.js | Docker Compose (1) |
 
+### База данных PostgreSQL (Prisma)
+
+| Переменная | Описание | Обязательная | Значение по умолчанию |
+|------------|----------|--------------|----------------------|
+| `DATABASE_URL` | Строка подключения к PostgreSQL для Prisma | **Да** | - |
+
+**Пример:**
+```env
+DATABASE_URL=postgresql://bsuir:bsuir@localhost:5432/bsuir?schema=public
+```
+
+⚠️ **Важно:** перед запуском приложения выполните инициализацию схемы:
+
+```bash
+npx prisma generate
+npx prisma db push
+```
+
 ## 📝 Минимальная конфигурация
 
 Для работы приложения с LDAP достаточно указать:

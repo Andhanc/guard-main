@@ -26,7 +26,7 @@ export async function GET(
       return NextResponse.json({ success: false, error: "Username is required" }, { status: 400 })
     }
 
-    const documents = getUserDocuments(username)
+    const documents = await getUserDocuments(username)
     const baseUrl = getBaseUrl(request)
 
     const documentsSummary = documents.map((doc) => {

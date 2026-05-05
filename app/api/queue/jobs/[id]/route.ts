@@ -13,7 +13,7 @@ export async function GET(
   }
 
   startQueueWorker()
-  const job = getJobById(jobId)
+  const job = await getJobById(jobId)
   if (!job) return NextResponse.json({ success: false, error: "not found" }, { status: 404 })
   return NextResponse.json({ success: true, job })
 }

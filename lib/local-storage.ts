@@ -6,7 +6,7 @@
 
 import fs from "fs"
 import path from "path"
-import { getSqlite } from "./sqlite"
+import { prisma } from "./prisma"
 import { ensureSqliteSeededFromLocalJson } from "./sqlite-seed"
 
 // Типы
@@ -57,42 +57,45 @@ function ensureCategoryDirs(category: string) {
   if (!fs.existsSync(uploads)) fs.mkdirSync(uploads, { recursive: true })
 }
 
-function initSqlite() {
-  const db = getSqlite()
-  ensureSqliteSeededFromLocalJson()
-  return db
+async function initDb() {
+  await ensureSqliteSeededFromLocalJson()
+  return prisma
 }
 
 function mapRowToStoredDocument(row: any): StoredDocument {
-  const docType = row.document_type === "pdf" || row.document_type === "word" ? row.document_type : undefined
+  const docType = row.documentType === "pdf" || row.documentType === "word" ? row.documentType : undefined
   return {
     id: row.id,
     title: row.title,
     author: row.author ?? null,
     filename: row.filename ?? null,
     documentType: docType,
-    filePath: row.file_path ?? null,
+    filePath: row.filePath ?? null,
     content: row.content,
-    wordCount: row.word_count,
-    uploadDate: row.upload_date,
+    wordCount: row.wordCount,
+    uploadDate: row.uploadDate instanceof Date ? row.uploadDate.toISOString() : row.uploadDate,
     category: row.category,
     status: row.status,
-    userId: row.user_id ?? undefined,
+    userId: row.userId ?? undefined,
     institution: row.institution ?? undefined,
-    minhashSignature: row.minhash_signature_json ? JSON.parse(row.minhash_signature_json) : [],
-    shingleCount: row.shingle_count ?? 0,
-    originalityPercent: typeof row.originality_percent === "number" ? row.originality_percent : undefined,
+    minhashSignature: row.minhashSignatureJson ? JSON.parse(row.minhashSignatureJson) : [],
+    shingleCount: row.shingleCount ?? 0,
+    originalityPercent: typeof row.originalityPercent === "number" ? row.originalityPercent : undefined,
     plagiarismPercentMl:
-      typeof row.plagiarism_percent_ml === "number" ? row.plagiarism_percent_ml : undefined,
-    aiPercentMl: typeof row.ai_percent_ml === "number" ? row.ai_percent_ml : undefined,
-    processingTimeMs: typeof row.processing_time_ms === "number" ? row.processing_time_ms : undefined,
+      typeof row.plagiarismPercentMl === "number" ? row.plagiarismPercentMl : undefined,
+    aiPercentMl: typeof row.aiPercentMl === "number" ? row.aiPercentMl : undefined,
+    processingTimeMs: typeof row.processingTimeMs === "number" ? row.processingTimeMs : undefined,
   }
 }
 
 /** Список категорий, для которых есть папка в data/ */
-export function getStorageCategories(): string[] {
-  const db = initSqlite()
-  const rows = db.prepare(`SELECT DISTINCT category FROM documents ORDER BY category`).all() as Array<{ category: string }>
+export async function getStorageCategories(): Promise<string[]> {
+  const db = await initDb()
+  const rows = await db.document.findMany({
+    select: { category: true },
+    distinct: ["category"],
+    orderBy: { category: "asc" },
+  })
   const cats = rows.map((r) => r.category).filter(Boolean)
   return cats.length > 0 ? cats : ["uncategorized"]
 }
@@ -116,7 +119,7 @@ export function saveFileToDisk(
 }
 
 // Добавление документа в базу (SQLite). ID — автоинкремент SQLite.
-export function addDocumentToDb(
+export async function addDocumentToDb(
   title: string,
   content: string,
   minhashSignature: number[],
@@ -133,46 +136,37 @@ export function addDocumentToDb(
   aiPercentMl?: number,
   processingTimeMs?: number,
   documentType?: "word" | "pdf",
-): StoredDocument {
+): Promise<StoredDocument> {
   const normCategory = category.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim() || "uncategorized"
   ensureCategoryDirs(normCategory)
-  const db = initSqlite()
+  const db = await initDb()
   const relativeFilePath = savedFilename ? `data/${normCategory}/uploads/${savedFilename}` : null
   const wordCount = content.split(/\s+/).filter((w) => w.length > 0).length
   const uploadDate = new Date().toISOString()
 
-  const info = db
-    .prepare(
-      `
-      INSERT INTO documents
-        (title, author, filename, document_type, file_path, content, word_count, upload_date, category, status, user_id, institution, minhash_signature_json, shingle_count, originality_percent, plagiarism_percent_ml, ai_percent_ml, processing_time_ms)
-      VALUES
-        (@title, @author, @filename, @document_type, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, @originality_percent, @plagiarism_percent_ml, @ai_percent_ml, @processing_time_ms)
-    `,
-    )
-    .run({
+  const created = await db.document.create({
+    data: {
       title,
       author: author || null,
       filename: filename || null,
-      document_type: documentType ?? null,
-      file_path: relativeFilePath,
+      documentType: documentType ?? null,
+      filePath: relativeFilePath,
       content,
-      word_count: wordCount,
-      upload_date: uploadDate,
+      wordCount,
+      uploadDate: new Date(uploadDate),
       category: normCategory,
       status,
-      user_id: userId ?? null,
+      userId: userId ?? null,
       institution: institution ?? null,
-      minhash_signature_json: JSON.stringify(minhashSignature ?? []),
-      shingle_count: shingleCount ?? 0,
-      originality_percent: typeof originalityPercent === "number" ? Math.round(originalityPercent * 100) / 100 : null,
-      plagiarism_percent_ml:
-        typeof plagiarismPercentMl === "number" ? plagiarismPercentMl : null,
-      ai_percent_ml: typeof aiPercentMl === "number" ? aiPercentMl : null,
-      processing_time_ms: typeof processingTimeMs === "number" ? Math.max(0, Math.round(processingTimeMs)) : null,
-    })
-
-  const id = Number(info.lastInsertRowid)
+      minhashSignatureJson: JSON.stringify(minhashSignature ?? []),
+      shingleCount: shingleCount ?? 0,
+      originalityPercent: typeof originalityPercent === "number" ? Math.round(originalityPercent * 100) / 100 : null,
+      plagiarismPercentMl: typeof plagiarismPercentMl === "number" ? plagiarismPercentMl : null,
+      aiPercentMl: typeof aiPercentMl === "number" ? aiPercentMl : null,
+      processingTimeMs: typeof processingTimeMs === "number" ? Math.max(0, Math.round(processingTimeMs)) : null,
+    },
+  })
+  const id = created.id
   return {
     id,
     title,
@@ -196,7 +190,7 @@ export function addDocumentToDb(
   }
 }
 
-function filterDraftTtlAndCleanup(documents: StoredDocument[], category: string): StoredDocument[] {
+async function filterDraftTtlAndCleanup(documents: StoredDocument[], category: string): Promise<StoredDocument[]> {
   const now = Date.now()
   const kept = documents.filter((doc) => {
     if (doc.status !== "draft") return true
@@ -218,11 +212,12 @@ function filterDraftTtlAndCleanup(documents: StoredDocument[], category: string)
   })
   if (kept.length !== documents.length) {
     // Persist deletions in SQLite
-    const sqlite = initSqlite()
+    const db = await initDb()
     const idsToKeep = new Set(kept.map((d) => d.id))
     const toDelete = documents.filter((d) => d.status === "draft" && !idsToKeep.has(d.id))
-    const del = sqlite.prepare(`DELETE FROM documents WHERE id = ?`)
-    for (const d of toDelete) del.run(d.id)
+    if (toDelete.length > 0) {
+      await db.document.deleteMany({ where: { id: { in: toDelete.map((d) => d.id) } } })
+    }
   }
   return kept
 }
@@ -231,41 +226,32 @@ function filterDraftTtlAndCleanup(documents: StoredDocument[], category: string)
  * Получение документов из БД. Если передан массив categories — только из этих категорий.
  * Для проверки курсовой/диплома передайте ["coursework", "diploma"].
  */
-export function getAllDocumentsFromDb(
+export async function getAllDocumentsFromDb(
   excludeUserId?: string,
   institution?: string,
   categories?: string[],
-): StoredDocument[] {
-  const db = initSqlite()
+): Promise<StoredDocument[]> {
+  const db = await initDb()
 
-  const where: string[] = []
-  const params: any[] = []
+  const where: any = {}
 
   if (categories && categories.length > 0) {
-    where.push(`category IN (${categories.map(() => "?").join(",")})`)
-    params.push(...categories)
+    where.category = { in: categories }
   }
   if (excludeUserId) {
-    where.push(`(user_id IS NULL OR user_id <> ?)`)
-    params.push(excludeUserId)
+    where.OR = [{ userId: null }, { userId: { not: excludeUserId } }]
   }
   if (institution) {
-    where.push(`institution = ?`)
-    params.push(institution)
+    where.institution = institution
   }
-
-  const sql = `
-    SELECT *
-    FROM documents
-    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-    ORDER BY upload_date DESC
-  `
-
-  const rows = db.prepare(sql).all(...params)
+  const rows = await db.document.findMany({
+    where,
+    orderBy: { uploadDate: "desc" },
+  })
   const docs: StoredDocument[] = rows.map(mapRowToStoredDocument)
 
   // TTL cleanup for drafts
-  const catsForCleanup = categories?.length ? categories : getStorageCategories()
+  const catsForCleanup = categories?.length ? categories : await getStorageCategories()
   const byCat = new Map<string, StoredDocument[]>()
   for (const d of docs) {
     if (!byCat.has(d.category)) byCat.set(d.category, [])
@@ -274,36 +260,26 @@ export function getAllDocumentsFromDb(
   const out: StoredDocument[] = []
   for (const cat of catsForCleanup) {
     const list = byCat.get(cat) ?? []
-    out.push(...filterDraftTtlAndCleanup(list, cat))
+    out.push(...(await filterDraftTtlAndCleanup(list, cat)))
   }
   return out.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime())
 }
 
-export function getUserFinalDocuments(userId: string): StoredDocument[] {
-  const db = initSqlite()
-  const rows = db
-    .prepare(
-      `
-      SELECT * FROM documents
-      WHERE user_id = ? AND status = 'final'
-      ORDER BY upload_date DESC
-    `,
-    )
-    .all(userId)
+export async function getUserFinalDocuments(userId: string): Promise<StoredDocument[]> {
+  const db = await initDb()
+  const rows = await db.document.findMany({
+    where: { userId, status: "final" },
+    orderBy: { uploadDate: "desc" },
+  })
   return rows.map(mapRowToStoredDocument)
 }
 
-export function getUserDocuments(userId: string): StoredDocument[] {
-  const db = initSqlite()
-  const rows = db
-    .prepare(
-      `
-      SELECT * FROM documents
-      WHERE user_id = ?
-      ORDER BY upload_date DESC
-    `,
-    )
-    .all(userId)
+export async function getUserDocuments(userId: string): Promise<StoredDocument[]> {
+  const db = await initDb()
+  const rows = await db.document.findMany({
+    where: { userId },
+    orderBy: { uploadDate: "desc" },
+  })
   const docs: StoredDocument[] = rows.map(mapRowToStoredDocument)
   const now = Date.now()
   const filtered = docs.filter((d) => d.status === "final" || now - new Date(d.uploadDate).getTime() < DRAFT_TTL_MS)
@@ -315,63 +291,64 @@ export function getUserDocuments(userId: string): StoredDocument[] {
   }
   const out: StoredDocument[] = []
   for (const [cat, list] of byCat.entries()) {
-    out.push(...filterDraftTtlAndCleanup(list, cat))
+    out.push(...(await filterDraftTtlAndCleanup(list, cat)))
   }
   return out.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime())
 }
 
-export function getDocumentByIdFromDb(id: number): StoredDocument | null {
-  const db = initSqlite()
-  const row = db.prepare(`SELECT * FROM documents WHERE id = ?`).get(id)
+export async function getDocumentByIdFromDb(id: number): Promise<StoredDocument | null> {
+  const db = await initDb()
+  const row = await db.document.findUnique({ where: { id } })
   return row ? mapRowToStoredDocument(row) : null
 }
 
-export function deleteDocumentFromDb(id: number): boolean {
-  const doc = getDocumentByIdFromDb(id)
+export async function deleteDocumentFromDb(id: number): Promise<boolean> {
+  const doc = await getDocumentByIdFromDb(id)
   if (!doc) return false
 
   if (doc.filePath) {
     const fullPath = path.join(process.cwd(), doc.filePath)
     if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath)
   }
-  const db = initSqlite()
-  const info = db.prepare(`DELETE FROM documents WHERE id = ?`).run(id)
-  return info.changes > 0
+  const db = await initDb()
+  const info = await db.document.deleteMany({ where: { id } })
+  return info.count > 0
 }
 
-export function getDocumentCountFromDb(): number {
-  const db = initSqlite()
-  const row = db.prepare(`SELECT COUNT(1) AS c FROM documents`).get() as { c: number }
-  return row?.c ?? 0
+export async function getDocumentCountFromDb(): Promise<number> {
+  const db = await initDb()
+  return db.document.count()
 }
 
-export function updateDocumentOriginality(documentId: number, originalityPercent: number): boolean {
-  const db = initSqlite()
+export async function updateDocumentOriginality(documentId: number, originalityPercent: number): Promise<boolean> {
+  const db = await initDb()
   const rounded = Math.round(originalityPercent * 100) / 100
-  const info = db.prepare(`UPDATE documents SET originality_percent = ? WHERE id = ?`).run(rounded, documentId)
-  return info.changes > 0
+  const info = await db.document.updateMany({
+    where: { id: documentId },
+    data: { originalityPercent: rounded },
+  })
+  return info.count > 0
 }
 
-export function updateDocumentMlScores(
+export async function updateDocumentMlScores(
   documentId: number,
   plagiarismPercentMl: number,
   aiPercentMl: number,
-): boolean {
-  const db = initSqlite()
+): Promise<boolean> {
+  const db = await initDb()
   const p = Math.round(plagiarismPercentMl * 100) / 100
   const a = Math.round(aiPercentMl * 100) / 100
-  const info = db
-    .prepare(
-      `UPDATE documents SET plagiarism_percent_ml = ?, ai_percent_ml = ? WHERE id = ?`,
-    )
-    .run(p, a, documentId)
-  return info.changes > 0
+  const info = await db.document.updateMany({
+    where: { id: documentId },
+    data: { plagiarismPercentMl: p, aiPercentMl: a },
+  })
+  return info.count > 0
 }
 
-export function updateDocumentStatus(documentId: number, status: DocumentStatus): boolean {
-  const db = initSqlite()
-  const info = db.prepare(`UPDATE documents SET status = ? WHERE id = ?`).run(status, documentId)
-  return info.changes > 0
+export async function updateDocumentStatus(documentId: number, status: DocumentStatus): Promise<boolean> {
+  const db = await initDb()
+  const info = await db.document.updateMany({ where: { id: documentId }, data: { status } })
+  return info.count > 0
 }
 
 // ——— Отчёты (PDF) ———
@@ -391,7 +368,7 @@ export function saveReportPdf(
   try {
     fs.writeFileSync(filePath, pdfBuffer)
     if (originalityPercent !== undefined) {
-      updateDocumentOriginality(documentId, originalityPercent)
+      void updateDocumentOriginality(documentId, originalityPercent)
     }
     return true
   } catch (err) {

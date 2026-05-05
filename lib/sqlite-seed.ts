@@ -1,6 +1,6 @@
 import fs from "fs"
 import path from "path"
-import { getSqlite } from "./sqlite"
+import { prisma } from "./prisma"
 
 type JsonUserDb = { users: any[] }
 type JsonCategoryDb = { documents: any[] }
@@ -35,80 +35,73 @@ function normalizeCategory(cat: string): string {
   return cat.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim() || "uncategorized"
 }
 
-export function ensureSqliteSeededFromLocalJson() {
-  const db = getSqlite()
-
-  const documentsCount = db.prepare("SELECT COUNT(1) AS c FROM documents").get() as { c: number }
-  const usersCount = db.prepare("SELECT COUNT(1) AS c FROM users").get() as { c: number }
+export async function ensureSqliteSeededFromLocalJson() {
+  const [documentsCount, usersCount] = await Promise.all([prisma.document.count(), prisma.user.count()])
 
   // Seed only when both tables are empty (first run)
-  if ((documentsCount?.c ?? 0) > 0 || (usersCount?.c ?? 0) > 0) return
+  if (documentsCount > 0 || usersCount > 0) return
 
   const usersJsonPath = path.join(DATA_DIR, "users.json")
   const usersDb = readJsonIfExists<JsonUserDb>(usersJsonPath)
 
   const categoryFiles = listCategoryDocumentFiles()
 
-  const insertUser = db.prepare(`
-    INSERT OR IGNORE INTO users
-      (username, password, role, additional_roles_json, email, full_name, institution, created_at, last_login)
-    VALUES
-      (@username, @password, @role, @additional_roles_json, @email, @full_name, @institution, @created_at, @last_login)
-  `)
-
-  const insertDoc = db.prepare(`
-    INSERT OR IGNORE INTO documents
-      (id, title, author, filename, file_path, content, word_count, upload_date, category, status, user_id, institution, minhash_signature_json, shingle_count, originality_percent)
-    VALUES
-      (@id, @title, @author, @filename, @file_path, @content, @word_count, @upload_date, @category, @status, @user_id, @institution, @minhash_signature_json, @shingle_count, @originality_percent)
-  `)
-
-  db.transaction(() => {
-    // Users
-    for (const u of usersDb?.users ?? []) {
-      insertUser.run({
-        username: String(u.username ?? "").trim(),
+  for (const u of usersDb?.users ?? []) {
+    const username = String(u.username ?? "").trim()
+    if (!username) continue
+    await prisma.user.upsert({
+      where: { username },
+      update: {},
+      create: {
+        username,
         password: String(u.password ?? ""),
         role: String(u.role ?? "student"),
-        additional_roles_json: u.additionalRoles ? JSON.stringify(u.additionalRoles) : null,
+        additionalRolesJson: u.additionalRoles ? JSON.stringify(u.additionalRoles) : null,
         email: u.email ?? null,
-        full_name: u.fullName ?? null,
+        fullName: u.fullName ?? null,
         institution: u.institution ?? null,
-        created_at: u.createdAt ?? new Date().toISOString(),
-        last_login: u.lastLogin ?? null,
-      })
-    }
+        createdAt: u.createdAt ? new Date(u.createdAt) : new Date(),
+        lastLogin: u.lastLogin ? new Date(u.lastLogin) : null,
+      },
+    })
+  }
 
-    // Documents
-    for (const { category, filePath } of categoryFiles) {
-      const json = readJsonIfExists<JsonCategoryDb>(filePath)
-      for (const d of json?.documents ?? []) {
-        const cat = normalizeCategory(String(d.category ?? category))
-        const minhash = Array.isArray(d.minhashSignature) ? d.minhashSignature : []
-        insertDoc.run({
-          id: typeof d.id === "number" ? d.id : Number.parseInt(String(d.id), 10),
+  for (const { category, filePath } of categoryFiles) {
+    const json = readJsonIfExists<JsonCategoryDb>(filePath)
+    for (const d of json?.documents ?? []) {
+      const cat = normalizeCategory(String(d.category ?? category))
+      const minhash = Array.isArray(d.minhashSignature) ? d.minhashSignature : []
+      const id = typeof d.id === "number" ? d.id : Number.parseInt(String(d.id), 10)
+      if (!Number.isFinite(id)) continue
+
+      const exists = await prisma.document.findUnique({ where: { id }, select: { id: true } })
+      if (exists) continue
+
+      await prisma.document.create({
+        data: {
+          id,
           title: String(d.title ?? ""),
           author: d.author ?? null,
           filename: d.filename ?? null,
-          file_path: d.filePath ?? null,
+          filePath: d.filePath ?? null,
           content: String(d.content ?? ""),
-          word_count:
+          wordCount:
             typeof d.wordCount === "number"
               ? d.wordCount
               : String(d.content ?? "")
                   .split(/\s+/)
                   .filter((w: string) => w.length > 0).length,
-          upload_date: d.uploadDate ?? new Date().toISOString(),
+          uploadDate: d.uploadDate ? new Date(d.uploadDate) : new Date(),
           category: cat,
           status: d.status ?? "draft",
-          user_id: d.userId ?? null,
+          userId: d.userId ?? null,
           institution: d.institution ?? null,
-          minhash_signature_json: JSON.stringify(minhash),
-          shingle_count: typeof d.shingleCount === "number" ? d.shingleCount : 0,
-          originality_percent: typeof d.originalityPercent === "number" ? d.originalityPercent : null,
-        })
-      }
+          minhashSignatureJson: JSON.stringify(minhash),
+          shingleCount: typeof d.shingleCount === "number" ? d.shingleCount : 0,
+          originalityPercent: typeof d.originalityPercent === "number" ? d.originalityPercent : null,
+        },
+      })
     }
-  })()
+  }
 }
 

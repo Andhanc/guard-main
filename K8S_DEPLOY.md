@@ -48,13 +48,24 @@ kubectl create secret generic plagiarismguard-app-secret \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
+Убедитесь, что в `.env.local` есть:
+
+- `DATABASE_URL=postgresql://...`
+- `ANALYSIS_SERVICE_URL=http://...:8765`
+
 4) Примените манифесты:
 
 ```bash
 kubectl apply -k k8s
 ```
 
-5) Проверьте статус:
+5) Инициализируйте схему БД (однократно на новую среду, или при изменении схемы):
+
+```bash
+kubectl exec -n plagiarismguard deploy/plagiarismguard-app -- npx prisma db push
+```
+
+6) Проверьте статус:
 
 ```bash
 kubectl get pods,svc,ingress -n plagiarismguard

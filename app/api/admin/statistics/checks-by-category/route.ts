@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate") || ""
     const endDate = searchParams.get("endDate") || ""
 
-    const documents = getAllDocumentsFromDb()
+    const documents = await getAllDocumentsFromDb()
 
     let filtered = documents
     if (startDate) {
