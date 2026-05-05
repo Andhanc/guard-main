@@ -42,6 +42,7 @@
     "@vercel/analytics": "1.3.1",
     "autoprefixer": "^10.4.20",
     "@prisma/client": "^6.8.2",
+    "prisma": "^6.8.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
@@ -74,7 +75,6 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "prisma": "^6.8.2",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
     "@types/react": "^19",

@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    openssl \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка зависимостей (включая dev-зависимости, нужные для сборки)
@@ -52,6 +53,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.mjs ./next.config.mjs
+COPY --from=builder /app/prisma ./prisma
 
 # Директория с файлами/БД будет монтироваться как volume
 VOLUME ["/app/data"]
