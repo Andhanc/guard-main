@@ -18,7 +18,7 @@ function getApiKey(): string | undefined {
   return k && k.length > 0 ? k : undefined
 }
 
-const DEFAULT_TIMEOUT_MS = 120_000
+const DEFAULT_TIMEOUT_MS = 300_000
 
 /**
  * Синхронный анализ текста на стороне ML-сервиса.
