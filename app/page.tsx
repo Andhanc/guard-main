@@ -1,4 +1,5 @@
 "use client"
+
 import { Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -13,19 +14,25 @@ export default function HomePage() {
     const user = getSession()
     if (user) {
       if (hasRole(user, "student") || hasRole(user, "teacher")) {
-        router.push(hasRole(user, "teacher") && !hasRole(user, "student") ? "/admin" : "/check")
+        router.replace(hasRole(user, "teacher") && !hasRole(user, "student") ? "/admin" : "/check")
       } else if (hasRole(user, "admin") || hasRole(user, "superadmin")) {
-        router.push("/admin")
+        router.replace("/admin")
       } else {
-        router.push("/check")
+        router.replace("/check")
       }
-    } else {
-      router.push("/login")
     }
   }, [router])
 
-  // Показываем стабильный контент до монтирования, чтобы избежать проблем с гидратацией
   if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#eaf1fb] flex items-center justify-center" suppressHydrationWarning>
+        <Loader2 className="h-8 w-8 animate-spin text-[#2563eb]" />
+      </div>
+    )
+  }
+
+  const user = getSession()
+  if (user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center" suppressHydrationWarning>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -34,8 +41,10 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center" suppressHydrationWarning>
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-    </div>
+    <iframe
+      src="/antiplagiarism-landing.html"
+      title="Антиплагиат БГУИР — проверка на оригинальность"
+      className="block h-[100dvh] min-h-[600px] w-full border-0"
+    />
   )
 }
