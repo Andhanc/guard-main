@@ -128,6 +128,7 @@ export default function CheckPage() {
 
     setIsChecking(true)
     setError(null)
+    setUploadError(null)
     setResult(null)
 
     const user = getSession()
@@ -176,15 +177,23 @@ export default function CheckPage() {
             body: uploadFormData,
           })
 
-          const uploadData = await uploadRes.json()
+          const uploadData = await uploadRes.json().catch(() => ({}))
           if (uploadData.success && uploadData.document && uploadData.document.id) {
             documentId = uploadData.document.id
             console.log("Документ сохранен с ID:", documentId)
           } else {
             console.warn("Документ не был сохранен в БД:", uploadData)
+            const msg =
+              typeof uploadData.error === "string" && uploadData.error.trim()
+                ? uploadData.error
+                : uploadRes.ok
+                  ? "Ответ /api/upload без success или без document.id (см. лог сервера)."
+                  : `Сохранение не удалось (HTTP ${uploadRes.status}).`
+            setUploadError(msg)
           }
         } catch (err) {
           console.error("Ошибка при сохранении документа в БД:", err)
+          setUploadError(err instanceof Error ? err.message : "Ошибка сети при вызове /api/upload.")
           /* файл не сохранён в БД */
         }
 
@@ -486,8 +495,19 @@ export default function CheckPage() {
                             <FileText className="h-4 w-4" />
                             Скачать итоговый отчёт с QR-кодами
                           </Button>
-                          <p className="text-sm text-muted-foreground text-center">
-                            Документ еще не сохранен. Пожалуйста, подождите...
+                          <p className="text-sm text-muted-foreground text-center max-w-md">
+                            {uploadError ? (
+                              <>
+                                <span className="text-destructive font-medium">Сохранение в базу не выполнено.</span>{" "}
+                                {uploadError}
+                              </>
+                            ) : (
+                              <>
+                                Номер сохранённого документа не получен — этап загрузки после проверки завершился без
+                                успешного ответа. Повторите проверку и смотрите логи контейнера на{" "}
+                                <code className="text-xs">POST /api/upload</code>.
+                              </>
+                            )}
                           </p>
                         </div>
                       ) : result.status === "draft" ? (
