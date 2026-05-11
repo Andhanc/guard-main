@@ -491,9 +491,7 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
     try {
       const id = result.documentId!
       const sigReport = signDocumentAccess("report", id)
-      // Верификация: без &; префикс /v/, подпись в path — только URL-encoded (без двойного decode на сервере).
-      const verifyReportUrl = `${baseUrl}/api/report/v/${id}/${encodeURIComponent(sigReport)}`
-      // Второй QR — тот же тип подписи «report»: открыть PDF этой справки в браузере (inline).
+      // Оба QR ведут на просмотр PDF справки (как GET /api/report/:id/view).
       const reportPdfViewUrl = `${baseUrl}/api/report/${id}/view?sig=${encodeURIComponent(sigReport)}`
 
       // Два блока: [QR] [текст справа], расположенные в одну строку.
@@ -511,21 +509,17 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
       const textOffsetX = 6
       const captionW = blockWidth - qrSize - textOffsetX
 
-      const qr1 = await QRCode.toDataURL(verifyReportUrl, { width: 200, margin: 1 })
+      const qr1 = await QRCode.toDataURL(reportPdfViewUrl, { width: 200, margin: 1 })
       const qr2 = await QRCode.toDataURL(reportPdfViewUrl, { width: 200, margin: 1 })
 
       doc.addImage(qr1, "PNG", qr1X, qrY, qrSize, qrSize)
       doc.setFontSize(8)
       doc.setFont(FONT, "normal")
       // Текст располагаем справа от каждого QR‑кода, как на оригинальном бланке.
-      const qr1Lines = doc.splitTextToSize(
-        "Для подтверждения подлинности и актуальности данной справки отсканируйте QR-код",
-        captionW,
-      )
-      const qr2Lines = doc.splitTextToSize(
-        "Для просмотра электронной версии данной справки в формате PDF отсканируйте QR-код",
-        captionW,
-      )
+      const qrCaption =
+        "Для просмотра электронной версии данной справки в формате PDF отсканируйте QR-код"
+      const qr1Lines = doc.splitTextToSize(qrCaption, captionW)
+      const qr2Lines = doc.splitTextToSize(qrCaption, captionW)
       const textY = qrY + 6
       const lineHeight = 4 // мм при размере шрифта 8
 
