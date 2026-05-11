@@ -2,12 +2,15 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getUserByUsername, deleteUser, readUsersDatabase, writeUsersDatabase } from "@/lib/user-storage"
 import type { UserRole } from "@/lib/auth"
 import { logInfo, logError } from "@/lib/logger"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 // PUT - Редактирование пользователя
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ username: string }> },
 ) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { username } = await params
     const body = await request.json()
@@ -63,6 +66,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ username: string }> },
 ) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { username } = await params
 

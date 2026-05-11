@@ -3,6 +3,27 @@ import { getUserByUsername, updateLastLogin, registerUser } from "@/lib/user-sto
 import { logInfo, logError } from "@/lib/logger"
 import { authenticateLDAP, mapLDAPUserToUser, getLDAPConfig } from "@/lib/ldap"
 import type { UserRole } from "@/lib/auth"
+import { GUARD_SESSION_COOKIE, signGuardSessionCookie } from "@/lib/guard-session.node"
+
+function jsonWithSessionCookie(
+  body: object,
+  session: { username: string; role: string; additionalRoles?: UserRole[] },
+): NextResponse {
+  const res = NextResponse.json(body)
+  const token = signGuardSessionCookie(
+    session.username,
+    session.role as UserRole,
+    session.additionalRoles,
+  )
+  res.cookies.set(GUARD_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  })
+  return res
+}
 
 // POST - Авторизация пользователя
 export async function POST(request: NextRequest) {
@@ -52,19 +73,26 @@ export async function POST(request: NextRequest) {
           }
 
           logInfo("LDAP пользователь авторизован", normalizedUsername, ldapUser.role, "login")
-          
-          return NextResponse.json({
-            success: true,
-            user: {
+
+          return jsonWithSessionCookie(
+            {
+              success: true,
+              user: {
+                username: ldapUser.username,
+                role: ldapUser.role,
+                additionalRoles: [],
+                email: ldapUser.email,
+                fullName: ldapUser.fullName,
+                middleName: ldapUser.middleName,
+                institution: ldapUser.institution,
+              },
+            },
+            {
               username: ldapUser.username,
               role: ldapUser.role,
               additionalRoles: [],
-              email: ldapUser.email,
-              fullName: ldapUser.fullName,
-              middleName: ldapUser.middleName,
-              institution: ldapUser.institution,
             },
-          })
+          )
         }
         // Если LDAP не вернул успех, продолжаем проверку локальной базы
       } catch (ldapError) {
@@ -79,18 +107,25 @@ export async function POST(request: NextRequest) {
       await updateLastLogin(normalizedUsername)
       logInfo("Пользователь авторизован", normalizedUsername, storedUser.role, "login")
 
-      return NextResponse.json({
-        success: true,
-        user: {
+      return jsonWithSessionCookie(
+        {
+          success: true,
+          user: {
+            username: storedUser.username,
+            role: storedUser.role,
+            additionalRoles: storedUser.additionalRoles ?? [],
+            email: storedUser.email,
+            fullName: storedUser.fullName,
+            middleName: undefined,
+            institution: storedUser.institution,
+          },
+        },
+        {
           username: storedUser.username,
           role: storedUser.role,
           additionalRoles: storedUser.additionalRoles ?? [],
-          email: storedUser.email,
-          fullName: storedUser.fullName,
-          middleName: undefined,
-          institution: storedUser.institution,
         },
-      })
+      )
     }
 
     // 3. Fallback на тестовых пользователей
@@ -104,17 +139,24 @@ export async function POST(request: NextRequest) {
     const testUser = testUsers[normalizedUsername]
     if (testUser && testUser.password === normalizedPassword) {
       logInfo("Тестовый пользователь авторизован", normalizedUsername, testUser.role, "login")
-      return NextResponse.json({
-        success: true,
-        user: {
-          username: testUser.username,
-          role: testUser.role as any,
-          additionalRoles: [],
-          email: testUser.email,
-          fullName: testUser.fullName,
-          middleName: undefined,
+      return jsonWithSessionCookie(
+        {
+          success: true,
+          user: {
+            username: testUser.username,
+            role: testUser.role as UserRole,
+            additionalRoles: [],
+            email: testUser.email,
+            fullName: testUser.fullName,
+            middleName: undefined,
+          },
         },
-      })
+        {
+          username: testUser.username,
+          role: testUser.role,
+          additionalRoles: [],
+        },
+      )
     }
 
     logError("Неудачная попытка входа", `Invalid credentials for ${username}`, username, undefined, "login")

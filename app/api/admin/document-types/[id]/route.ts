@@ -1,11 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { updateDocumentType, deleteDocumentType, getDocumentTypes } from "@/lib/document-types"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 /** PUT — обновить тип по id */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { id } = await params
     const body = await request.json()
@@ -26,9 +29,11 @@ export async function PUT(
 
 /** DELETE — удалить тип по id */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { id } = await params
     const result = deleteDocumentType(decodeURIComponent(id))

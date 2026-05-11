@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getAllDocumentsFromDb } from "@/lib/local-storage"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 /**
  * GET /api/admin/statistics/heatmap
@@ -8,6 +9,8 @@ import { getAllDocumentsFromDb } from "@/lib/local-storage"
  *            category (через запятую: diploma,coursework,... или пусто = все)
  */
 export async function GET(request: NextRequest) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { searchParams } = new URL(request.url)
     const yearParam = searchParams.get("year")

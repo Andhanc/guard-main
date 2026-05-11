@@ -54,5 +54,6 @@ export function getSession(): User | null {
 export function clearSession(): void {
   if (typeof window !== "undefined") {
     localStorage.removeItem("user")
+    void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => {})
   }
 }

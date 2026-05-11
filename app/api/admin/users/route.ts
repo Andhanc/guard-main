@@ -2,9 +2,12 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getAllUsers, registerUser } from "@/lib/user-storage"
 import { getAllDocumentsFromDb } from "@/lib/local-storage"
 import { logInfo, logError } from "@/lib/logger"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 // GET - Получение всех пользователей
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const users = await getAllUsers()
     const documents = await getAllDocumentsFromDb()
@@ -42,6 +45,8 @@ export async function GET() {
 
 // POST - Добавление нового пользователя
 export async function POST(request: NextRequest) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const body = await request.json()
     const { username, password, role, email, fullName, institution } = body

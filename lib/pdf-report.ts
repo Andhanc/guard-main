@@ -336,8 +336,26 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
   }
 
   // ——— Блок 2: Результаты ——— (сразу после блока ФИО / Тип / Название)
-  const matchesPercent = Math.round((100 - result.uniquenessPercent) * 100) / 100
-  const origPercent = Math.round(result.uniquenessPercent * 100) / 100
+  // Список источников для таблицы ниже (сортировка по доле сходства)
+  const sourcesSorted = [...(result.similarDocuments || [])]
+    .filter((s) => typeof s.similarity === "number" && Number.isFinite(s.similarity) && s.similarity > 0)
+    .sort((a, b) => b.similarity - a.similarity)
+
+  const topLocalShare =
+    sourcesSorted.length > 0
+      ? Math.round(Math.max(...sourcesSorted.map((s) => s.similarity)) * 100) / 100
+      : null
+
+  const fromStoredUniqueness = Math.round(result.uniquenessPercent * 100) / 100
+  const impliedMatchFromStored = Math.round((100 - result.uniquenessPercent) * 100) / 100
+
+  // Полосы «Совпадения / Оригинальность»: если есть перечень работ — совпадают с максимальной долей в таблице;
+  // иначе берём сохранённые uniqueness/originality (в т.ч. отчёт без списка, восстановленный из БД).
+  const matchesPercent =
+    topLocalShare != null ? topLocalShare : impliedMatchFromStored
+  const origPercent =
+    topLocalShare != null ? Math.round((100 - topLocalShare) * 100) / 100 : fromStoredUniqueness
+
   const aiPercent = Math.round((result.aiPercentMl ?? 0) * 100) / 100
 
   // Небольшой отступ сверху перед блоком результатов (подвинули ближе к верхней линии)
@@ -473,11 +491,10 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
     try {
       const id = result.documentId!
       const sigReport = signDocumentAccess("report", id)
-      const sigOriginal = signDocumentAccess("original", id)
       // Верификация: без &; префикс /v/, подпись в path — только URL-encoded (без двойного decode на сервере).
       const verifyReportUrl = `${baseUrl}/api/report/v/${id}/${encodeURIComponent(sigReport)}`
-      // Один query-параметр — исключает поломку & → &amp; при промежуточном HTML.
-      const originalWorkUrl = `${baseUrl}/api/report/${id}/original?sig=${encodeURIComponent(sigOriginal)}`
+      // Второй QR — тот же тип подписи «report»: открыть PDF этой справки в браузере (inline).
+      const reportPdfViewUrl = `${baseUrl}/api/report/${id}/view?sig=${encodeURIComponent(sigReport)}`
 
       // Два блока: [QR] [текст справа], расположенные в одну строку.
       const qrSize = 30
@@ -495,7 +512,7 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
       const captionW = blockWidth - qrSize - textOffsetX
 
       const qr1 = await QRCode.toDataURL(verifyReportUrl, { width: 200, margin: 1 })
-      const qr2 = await QRCode.toDataURL(originalWorkUrl, { width: 200, margin: 1 })
+      const qr2 = await QRCode.toDataURL(reportPdfViewUrl, { width: 200, margin: 1 })
 
       doc.addImage(qr1, "PNG", qr1X, qrY, qrSize, qrSize)
       doc.setFontSize(8)
@@ -506,7 +523,7 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
         captionW,
       )
       const qr2Lines = doc.splitTextToSize(
-        "Для просмотра оригинальной электронной версии документа отсканируйте QR-код",
+        "Для просмотра электронной версии данной справки в формате PDF отсканируйте QR-код",
         captionW,
       )
       const textY = qrY + 6
@@ -547,7 +564,6 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
   }
 
   // ——— Блок 4: Таблица «Источники» (под QR-кодами) ———
-  const sources = (result.similarDocuments || []).filter((s) => s.similarity > 0)
   if (y > pageHeight - 70) {
     doc.addPage()
     y = margin
@@ -585,15 +601,17 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
   y += rowH + 2
 
   doc.setFont(FONT, "normal")
-  if (sources.length > 0) {
-    sources.forEach((s, idx) => {
+  const tableTextWidth = pageWidth - 2 * margin
+
+  if (sourcesSorted.length > 0) {
+    sourcesSorted.forEach((s, idx) => {
       if (y > pageHeight - 25) {
         doc.addPage()
         y = margin
       }
-      // Только текст строк без прямоугольников вокруг
+      const authorMark = (s.userId || s.author || "—").toString().slice(0, 14)
       doc.text(String(idx + 1), margin + colNo / 2, y + 0.5, { align: "center" })
-      doc.text((s.userId ?? "—").slice(0, 14), margin + colNo + 2, y + 0.5)
+      doc.text(authorMark, margin + colNo + 2, y + 0.5)
       doc.text(formatPercent(s.similarity), margin + colNo + colAuthors + colShare / 2, y + 0.5, {
         align: "center",
       })
@@ -601,8 +619,20 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
       doc.text(title, margin + colNo + colAuthors + colShare + 2, y + 0.5)
       y += rowH + 2
     })
+  } else if (impliedMatchFromStored > 0.5 || (result.plagiarismPercentMl ?? 0) > 0.5) {
+    // Нельзя утверждать «совпадений нет», если в блоке результатов ненулевые метрики, а список просто не передан (напр. PDF из профиля).
+    doc.setFontSize(8)
+    const ml = result.plagiarismPercentMl
+    let note =
+      "Перечень похожих работ из локальной базы в этот файл не включён (список не сохранялся при генерации — например, справка сформирована из профиля). Показатели в блоке «Результаты» соответствуют сохранённой проверке."
+    if (typeof ml === "number" && ml > 0.5) {
+      note += ` Совпадения по векторной базе (ML): ${formatPercent(ml)}%.`
+    }
+    const noteLines = doc.splitTextToSize(note, tableTextWidth)
+    doc.text(noteLines, margin, y + 0.5)
+    y += noteLines.length * 4 + 4
+    doc.setFontSize(9)
   } else {
-    // Строка-заглушка без рамок
     doc.text("1", margin + colNo / 2, y + 0.5, { align: "center" })
     doc.text("—", margin + colNo + 2, y + 0.5)
     doc.text("—", margin + colNo + colAuthors + colShare / 2, y + 0.5, { align: "center" })

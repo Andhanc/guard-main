@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getLogs } from "@/lib/logger"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 const RANGES = [
   { key: "0-10", label: "0-10", min: 0, max: 10 },
@@ -23,6 +24,8 @@ const CATEGORY_KEYS = ["diploma", "coursework", "lab", "practice", "uncategorize
  *            category (diploma,coursework,lab,practice,uncategorized или пусто = все)
  */
 export async function GET(request: NextRequest) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { searchParams } = new URL(request.url)
     const yearParam = searchParams.get("year")

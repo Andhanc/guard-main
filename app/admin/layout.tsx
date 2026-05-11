@@ -15,7 +15,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const user = getSession()
-    if (!user || (!hasRole(user, "admin") && !hasRole(user, "superadmin") && !hasRole(user, "teacher"))) {
+    if (!user || (!hasRole(user, "admin") && !hasRole(user, "superadmin"))) {
       router.push("/login")
       setUser(null)
     } else {
@@ -58,17 +58,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {(() => {
               const role = user.role
               const label =
-                role === "superadmin"
-                  ? "Главный администратор"
-                  : role === "admin"
-                    ? "Администратор"
-                    : "Преподаватель"
+                role === "superadmin" ? "Главный администратор" : "Администратор"
               const colorClasses =
                 role === "superadmin"
                   ? "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-900/40 dark:text-rose-100 dark:border-rose-500/40"
-                  : role === "admin"
-                    ? "bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-900/40 dark:text-sky-100 dark:border-sky-500/40"
-                    : "bg-indigo-50 text-indigo-800 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-100 dark:border-indigo-500/40"
+                  : "bg-sky-50 text-sky-800 border-sky-200 dark:bg-sky-900/40 dark:text-sky-100 dark:border-sky-500/40"
               return (
                 <Badge
                   variant="outline"

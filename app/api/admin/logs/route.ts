@@ -1,8 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getLogs } from "@/lib/logger"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 // GET - Получение логов
 export async function GET(request: NextRequest) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { searchParams } = new URL(request.url)
     const level = searchParams.get("level") as "info" | "warning" | "error" | "debug" | null

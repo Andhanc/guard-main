@@ -68,6 +68,7 @@ export default function CheckPage() {
   const [error, setError] = useState<string | null>(null)
   const [history, setHistory] = useState<CheckHistoryItem[]>([])
   const [isSavingAsFinal, setIsSavingAsFinal] = useState(false)
+  const [isRetryingUpload, setIsRetryingUpload] = useState(false)
 
   const [showMetadataDialog, setShowMetadataDialog] = useState(false)
   const [metadata, setMetadata] = useState({
@@ -254,6 +255,93 @@ export default function CheckPage() {
       setError("Ошибка соединения с сервером")
     } finally {
       setIsChecking(false)
+    }
+  }
+
+  /** Повтор POST /api/upload (тот же файл и метаданные), если первый раз упал (СУБД, сеть). */
+  const retrySaveDocumentToDb = async () => {
+    if (!parsedFile || !originalFile || !result) return
+    const user = getSession()
+    setIsRetryingUpload(true)
+    setUploadError(null)
+    try {
+      const uploadFormData = new FormData()
+      uploadFormData.append("file", originalFile)
+      uploadFormData.append("title", metadata.title || parsedFile.filename)
+      uploadFormData.append("author", metadata.author || "Студент")
+      uploadFormData.append("category", metadata.category)
+      uploadFormData.append("status", metadata.status)
+      uploadFormData.append("userId", user?.username || "")
+      uploadFormData.append("institution", user?.institution || "БГУИР")
+      uploadFormData.append("content", parsedFile.text)
+      uploadFormData.append("originality_percent", String(result.uniquenessPercent ?? 0))
+      uploadFormData.append("processing_time_ms", String(result.processingTimeMs ?? 0))
+      uploadFormData.append("document_type", parsedFile.fileType === "pdf" ? "pdf" : "word")
+
+      if (
+        typeof result.mlPlagiarismPercent === "number" &&
+        typeof result.mlAiPercent === "number"
+      ) {
+        uploadFormData.append("plagiarism_percent_ml", String(result.mlPlagiarismPercent))
+        uploadFormData.append("ai_percent_ml", String(result.mlAiPercent))
+      }
+
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadFormData,
+      })
+
+      const uploadData = await uploadRes.json().catch(() => ({}))
+      if (uploadData.success && uploadData.document && uploadData.document.id) {
+        const documentId = uploadData.document.id as number
+        const merged = { ...result, documentId }
+        setResult(merged)
+        saveCheckResult(parsedFile, merged)
+        setHistory(getCheckHistory())
+
+        if (metadata.status === "final") {
+          try {
+            const currentUser = getSession()
+            await fetch("/api/report", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                filename: parsedFile.filename,
+                title: metadata.title,
+                author: metadata.author,
+                checker: metadata.checker || undefined,
+                category: metadata.category,
+                uniquenessPercent: merged.uniquenessPercent,
+                totalDocumentsChecked: merged.totalDocumentsChecked,
+                similarDocuments: merged.similarDocuments,
+                processingTimeMs: merged.processingTimeMs,
+                plagiarismPercentMl: merged.mlPlagiarismPercent,
+                aiPercentMl: merged.mlAiPercent,
+                uploadDate: new Date().toISOString(),
+                status: "final" as const,
+                documentId,
+                baseUrl: undefined,
+                userId: currentUser?.username,
+                userRole: currentUser?.role,
+              }),
+            })
+          } catch (e) {
+            console.error("Автогенерация отчёта после повторного сохранения:", e)
+          }
+        }
+      } else {
+        const msg =
+          typeof uploadData.error === "string" && uploadData.error.trim()
+            ? uploadData.error
+            : uploadRes.ok
+              ? "Ответ /api/upload без success или без document.id (см. лог сервера)."
+              : `Сохранение не удалось (HTTP ${uploadRes.status}).`
+        setUploadError(msg)
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Ошибка сети при вызове /api/upload.")
+    } finally {
+      setIsRetryingUpload(false)
     }
   }
 
@@ -495,20 +583,40 @@ export default function CheckPage() {
                             <FileText className="h-4 w-4" />
                             Скачать итоговый отчёт с QR-кодами
                           </Button>
-                          <p className="text-sm text-muted-foreground text-center max-w-md">
+                          <div className="text-sm text-muted-foreground text-center max-w-md space-y-3">
                             {uploadError ? (
-                              <>
+                              <p>
                                 <span className="text-destructive font-medium">Сохранение в базу не выполнено.</span>{" "}
                                 {uploadError}
-                              </>
+                              </p>
                             ) : (
-                              <>
+                              <p>
                                 Номер сохранённого документа не получен — этап загрузки после проверки завершился без
-                                успешного ответа. Повторите проверку и смотрите логи контейнера на{" "}
+                                успешного ответа. Повторите сохранение или проверку; в логах контейнера смотрите{" "}
                                 <code className="text-xs">POST /api/upload</code>.
-                              </>
+                              </p>
                             )}
-                          </p>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => void retrySaveDocumentToDb()}
+                              disabled={isRetryingUpload}
+                            >
+                              {isRetryingUpload ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Повтор запроса…
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="h-4 w-4" />
+                                  Повторить сохранение в базу
+                                </>
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       ) : result.status === "draft" ? (
                         <div className="flex flex-col items-center gap-4 w-full max-w-md">

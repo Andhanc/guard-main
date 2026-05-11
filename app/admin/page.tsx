@@ -119,7 +119,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     const user = getSession()
-    if (!user || (!hasRole(user, "teacher") && !hasRole(user, "admin") && !hasRole(user, "superadmin"))) {
+    if (!user || (!hasRole(user, "admin") && !hasRole(user, "superadmin"))) {
       router.push("/login")
       return
     }

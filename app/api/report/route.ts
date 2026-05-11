@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { generatePDFReport } from "@/lib/pdf-report"
 import { saveReportPdf } from "@/lib/local-storage"
 import { logInfo } from "@/lib/logger"
+import { getSimilarDocumentsForReport } from "@/lib/similar-documents-for-report"
 
 const DEFAULT_REPORT_BASE_URL = "http://172.16.82.130:3000"
 
@@ -57,8 +58,20 @@ export async function POST(request: NextRequest) {
     // Всегда используем серверную функцию getBaseUrl, игнорируя baseUrl с клиента
     // чтобы избежать проблем с localhost на сервере
     const baseUrl = getBaseUrl(request)
+
+    let similarDocuments = Array.isArray(result.similarDocuments) ? result.similarDocuments : []
+    const docId = typeof result.documentId === "number" ? result.documentId : undefined
+    if (docId && similarDocuments.length === 0) {
+      try {
+        similarDocuments = await getSimilarDocumentsForReport(docId)
+      } catch {
+        /* оставляем пустым — pdf-report покажет пояснение / метрики */
+      }
+    }
+
     const payload = {
       ...result,
+      similarDocuments,
       checker: result.checker ?? undefined,
       baseUrl,
     }

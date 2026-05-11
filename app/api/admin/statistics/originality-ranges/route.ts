@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getAllDocumentsFromDb } from "@/lib/local-storage"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 const RANGES = [
   { key: "0-10", label: "0-10", min: 0, max: 10 },
@@ -21,6 +22,8 @@ const RANGES = [
  *            category (через запятую: diploma,coursework,lab,practice или пусто = все)
  */
 export async function GET(request: NextRequest) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { searchParams } = new URL(request.url)
     const yearParam = searchParams.get("year")

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getDocumentByIdFromDb, updateDocumentStatus, getReportPdfPath, saveReportPdf } from "@/lib/local-storage"
 import { generatePDFReport } from "@/lib/pdf-report"
+import { getSimilarDocumentsForReport } from "@/lib/similar-documents-for-report"
 import { logInfo, logError } from "@/lib/logger"
 import type { DocumentStatus } from "@/lib/local-storage"
 
@@ -66,14 +67,20 @@ export async function PATCH(
             doc.originalityPercent !== null && doc.originalityPercent !== undefined
               ? doc.originalityPercent
               : 100
+          let similarDocuments: Awaited<ReturnType<typeof getSimilarDocumentsForReport>> = []
+          try {
+            similarDocuments = await getSimilarDocumentsForReport(id)
+          } catch {
+            similarDocuments = []
+          }
           const pdfBytes = await generatePDFReport({
             filename: doc.filename || `${doc.title || "document"}.txt`,
             title: doc.title,
             author: doc.author || undefined,
             category: doc.category,
             uniquenessPercent,
-            totalDocumentsChecked: 0,
-            similarDocuments: [],
+            totalDocumentsChecked: similarDocuments.length > 0 ? similarDocuments.length : 0,
+            similarDocuments,
             processingTimeMs: doc.processingTimeMs ?? 0,
             plagiarismPercentMl: doc.plagiarismPercentMl,
             aiPercentMl: doc.aiPercentMl,

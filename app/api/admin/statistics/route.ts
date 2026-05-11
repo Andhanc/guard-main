@@ -1,9 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getAllDocumentsFromDb } from "@/lib/local-storage"
 import { getLogs } from "@/lib/logger"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 // GET - Получение статистики
 export async function GET(request: NextRequest) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get("startDate")

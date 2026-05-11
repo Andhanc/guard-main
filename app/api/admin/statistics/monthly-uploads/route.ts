@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getAllDocumentsFromDb } from "@/lib/local-storage"
+import { requireAdminApi } from "@/lib/require-admin-api"
 
 const MONTH_LABELS = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
@@ -10,6 +11,8 @@ const MONTH_LABELS = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн"
  *            category (через запятую: diploma,coursework,... или пусто = все)
  */
 export async function GET(request: NextRequest) {
+  const gate = await requireAdminApi(request)
+  if (!gate.ok) return gate.response
   try {
     const { searchParams } = new URL(request.url)
     const yearParam = searchParams.get("year")

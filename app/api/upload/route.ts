@@ -3,6 +3,7 @@ import { saveFileToDisk, addDocumentToDb, updateDocumentMlScores } from "@/lib/l
 import { createShingles, MinHash, normalizeContentForCheck } from "@/lib/plagiarism/algorithms"
 import { analyzeWithMlService } from "@/lib/analysis-client"
 import { logInfo, logError } from "@/lib/logger"
+import { formatApiUploadError } from "@/lib/prisma-error-message"
 
 const NUM_HASHES = 128
 
@@ -28,7 +29,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Файл, название и содержимое обязательны" }, { status: 400 })
     }
 
-    const normCategory = (category || "uncategorized").replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim() || "uncategorized"
+    const normCategory =
+      (category || "uncategorized").replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, "_").trim() || "uncategorized"
 
     // Сохраняем файл в папку категории (coursework, diploma и т.д.)
     const fileBuffer = Buffer.from(await file.arrayBuffer())
@@ -69,10 +71,23 @@ export async function POST(request: NextRequest) {
       documentType = ext === "pdf" ? "pdf" : ext === "doc" || ext === "docx" ? "word" : undefined
     }
 
-    // Создаем MinHash сигнатуру
-    const shingles = createShingles(normalizedContent, 5)
-    const minhash = new MinHash(NUM_HASHES)
-    const signature = minhash.computeSignature(shingles)
+    let shingles
+    let signature: number[]
+    try {
+      shingles = createShingles(normalizedContent, 5)
+      const minhash = new MinHash(NUM_HASHES)
+      signature = minhash.computeSignature(shingles)
+    } catch (e) {
+      logError("MinHash при загрузке", e instanceof Error ? e : String(e), undefined, undefined, "upload")
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Не удалось обработать текст документа (слишком объёмный или некорректный). Попробуйте разбить файл или сократить текст.",
+        },
+        { status: 400 },
+      )
+    }
 
     // Добавляем в базу данных этой категории
     let doc = await addDocumentToDb(
@@ -94,18 +109,29 @@ export async function POST(request: NextRequest) {
       documentType,
     )
 
+    // Дозапрос к ML не должен отменять успешно созданную запись в БД
     if (
       (typeof plagiarismPercentMl !== "number" || typeof aiPercentMl !== "number") &&
       normalizedContent.length >= 50
     ) {
-      const ml = await analyzeWithMlService(normalizedContent, { filename: file.name, documentId: doc.id })
-      if (ml) {
-        await updateDocumentMlScores(doc.id, ml.plagiarismPercent, ml.aiPercent)
-        doc = {
-          ...doc,
-          plagiarismPercentMl: ml.plagiarismPercent,
-          aiPercentMl: ml.aiPercent,
+      try {
+        const ml = await analyzeWithMlService(normalizedContent, { filename: file.name, documentId: doc.id })
+        if (ml) {
+          await updateDocumentMlScores(doc.id, ml.plagiarismPercent, ml.aiPercent)
+          doc = {
+            ...doc,
+            plagiarismPercentMl: ml.plagiarismPercent,
+            aiPercentMl: ml.aiPercent,
+          }
         }
+      } catch (mlErr) {
+        logError(
+          "ML-дозапись после загрузки не выполнена (документ уже в БД)",
+          mlErr instanceof Error ? mlErr : String(mlErr),
+          userId || undefined,
+          doc.id,
+          "upload",
+        )
       }
     }
 
@@ -128,7 +154,25 @@ export async function POST(request: NextRequest) {
       message: `Файл сохранен: ${doc.filePath}`,
     })
   } catch (error) {
-    logError("Ошибка при загрузке файла", error instanceof Error ? error : String(error), undefined, undefined, "upload")
-    return NextResponse.json({ success: false, error: "Ошибка при загрузке файла" }, { status: 500 })
+    logError(
+      "Ошибка при загрузке файла",
+      error instanceof Error ? error : String(error),
+      undefined,
+      undefined,
+      "upload",
+    )
+    const msg = formatApiUploadError(error)
+    const prismaCode =
+      error && typeof error === "object" && "code" in error && typeof (error as { code: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : undefined
+    return NextResponse.json(
+      {
+        success: false,
+        error: msg,
+        ...(prismaCode ? { prismaCode } : {}),
+      },
+      { status: 500 },
+    )
   }
 }
