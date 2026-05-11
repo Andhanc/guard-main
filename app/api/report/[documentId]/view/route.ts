@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getReportPdfBuffer, getDocumentByIdFromDb } from "@/lib/local-storage"
 import { verifyDocumentAccess } from "@/lib/report-access"
+import { getQrSignature } from "@/lib/report-verify-get"
 
 /**
  * GET /api/report/:documentId/view?sig=...
@@ -14,7 +15,7 @@ export async function GET(
   try {
     const { documentId } = await params
     const id = parseInt(documentId, 10)
-    const sig = request.nextUrl.searchParams.get("sig")
+    const sig = getQrSignature(request.nextUrl.searchParams)
 
     if (Number.isNaN(id)) {
       return NextResponse.json({ success: false, error: "Некорректный documentId" }, { status: 400 })

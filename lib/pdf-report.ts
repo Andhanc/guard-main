@@ -474,7 +474,8 @@ export async function generatePDFReport(result: CheckResultForReport): Promise<U
       const id = result.documentId!
       const sigReport = signDocumentAccess("report", id)
       const sigOriginal = signDocumentAccess("original", id)
-      const verifyReportUrl = `${baseUrl}/api/report/verify?documentId=${id}&sig=${encodeURIComponent(sigReport)}`
+      // Без символа & в URL — некоторые шаги (HTML/email) экранируют & в &amp; и QR перестаёт работать.
+      const verifyReportUrl = `${baseUrl}/api/report/verify/${id}/${sigReport}`
       const originalWorkUrl = `${baseUrl}/api/report/${id}/original?sig=${encodeURIComponent(sigOriginal)}`
 
       // Два блока: [QR] [текст справа], расположенные в одну строку.
