@@ -5,14 +5,42 @@ import { logInfo } from "@/lib/logger"
 
 const DEFAULT_REPORT_BASE_URL = "http://172.16.82.130:3000"
 
-function getBaseUrl(_request: NextRequest): string {
-  // Для QR нужен публичный адрес, который гарантированно открывается для пользователей.
-  const configured = (process.env.REPORT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "").trim()
-  if (configured && !configured.includes("localhost") && !configured.includes("127.0.0.1")) {
-    return configured.replace(/\/$/, "")
+function stripTrailingSlash(url: string): string {
+  return url.replace(/\/$/, "")
+}
+
+function isLoopback(urlOrHostish: string): boolean {
+  const s = urlOrHostish.toLowerCase()
+  return s.includes("localhost") || s.includes("127.0.0.1")
+}
+
+/** Базовый URL в QR справки: явный REPORT_PUBLIC_* → Host запроса (как пользователь открыл сайт) → NEXT_PUBLIC_* → дефолт IP. */
+function getBaseUrl(request: NextRequest): string {
+  const reportPublic = process.env.REPORT_PUBLIC_BASE_URL?.trim()
+  if (reportPublic && !isLoopback(reportPublic)) {
+    return stripTrailingSlash(reportPublic)
   }
 
-  // Fallback: фиксированный адрес сервера для QR-ссылок.
+  const hostRaw = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
+    ?? request.headers.get("host")?.trim()
+  const protoRaw = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ?? "http"
+  const proto = protoRaw === "https" ? "https" : "http"
+
+  if (hostRaw && !isLoopback(hostRaw)) {
+    const withoutDefaultPort =
+      proto === "http" && hostRaw.endsWith(":80")
+        ? hostRaw.slice(0, -3)
+        : proto === "https" && hostRaw.endsWith(":443")
+          ? hostRaw.slice(0, -4)
+          : hostRaw
+    return stripTrailingSlash(`${proto}://${withoutDefaultPort}`)
+  }
+
+  const nextPublic = process.env.NEXT_PUBLIC_APP_URL?.trim()
+  if (nextPublic && !isLoopback(nextPublic)) {
+    return stripTrailingSlash(nextPublic)
+  }
+
   return DEFAULT_REPORT_BASE_URL
 }
 

@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { decodePathSegmentSig, reportVerifyResponse } from "@/lib/report-verify-get"
 
-/** @deprecated Совместимость со старыми QR; новые справки — GET /api/report/v/:documentId/:sig */
+/**
+ * GET /api/report/v/:documentId/:sig
+ * Верификация справки без «…/verify/:id/:sig» (меньше шансов пересечься с другими сегментами) и с :sig в URL-encoded виде в QR.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ documentId: string; sig: string }> },
@@ -14,7 +17,7 @@ export async function GET(
 
     return reportVerifyResponse(id, sig, rawJson)
   } catch (e) {
-    console.error("Report verify (legacy path) error:", e)
+    console.error("Report verify (v) error:", e)
     return NextResponse.json({ success: false, error: "Ошибка верификации" }, { status: 500 })
   }
 }

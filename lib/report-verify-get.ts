@@ -18,6 +18,19 @@ export function getQrSignature(searchParams: URLSearchParams): string | null {
   return encodedName
 }
 
+/** Сегмент path из QR (может быть percent-encoded). */
+export function decodePathSegmentSig(sigRaw: string | null | undefined): string | null {
+  let sig: string | null = sigRaw || null
+  if (sig && sig.includes("%")) {
+    try {
+      sig = decodeURIComponent(sig)
+    } catch {
+      /* оставляем как есть */
+    }
+  }
+  return sig
+}
+
 export async function reportVerifyResponse(
   documentIdNum: number,
   sig: string | null,
